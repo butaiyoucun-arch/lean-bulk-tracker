@@ -1,0 +1,9 @@
+{
+  "buildCommand": "cd client && npx vite build --outDir ../dist",
+  "outputDirectory": "dist",
+  "installCommand": "cd client && npm install",
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
