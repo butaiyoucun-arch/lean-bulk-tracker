@@ -620,7 +620,120 @@ function BodyPhotoGallery() {
   );
 }
 
-// Main Review Page - Order: AI Advice, Muscle Heatmap, Monthly Distance, Distance Trend, Sleep, Body Photo Gallery
+// Comprehensive Analysis Component
+function ComprehensiveAnalysis() {
+  const bodyLogs = getAllBodyLogs();
+  const trainingRecords = getAllTrainingRecords();
+  const runningRecords = getAllRunningRecords();
+  const sleepRecords = getAllSleepRecords();
+  const settings = getSettings();
+
+  const weights = Object.values(bodyLogs)
+    .filter((b) => b.weight)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const trainingDays = Object.keys(trainingRecords).length;
+  const runningDays = Object.keys(runningRecords).length;
+  const totalDistance = Object.values(runningRecords).reduce((sum, r) => sum + (r.distance || 0), 0);
+  const sleepArr = Object.values(sleepRecords).filter((s) => s.sleepHours);
+  const avgSleep = sleepArr.length > 0
+    ? sleepArr.reduce((sum, s) => sum + (s.sleepHours || 0), 0) / sleepArr.length
+    : null;
+
+  const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : null;
+  const startWeight = weights.length > 0 ? weights[0].weight : null;
+  const weightChange = latestWeight && startWeight ? latestWeight - startWeight : null;
+  const remaining = latestWeight ? settings.targetWeight - latestWeight : null;
+
+  return (
+    <div className="card-neu p-5">
+      <h3 className="text-sm font-bold mb-4 flex items-center gap-2 text-foreground">
+        総合分析
+      </h3>
+
+      {/* Weight Progress */}
+      <div className="bg-white/60 rounded-xl p-4 border border-border/50 mb-3">
+        <h4 className="text-xs font-bold text-foreground/50 uppercase tracking-wider mb-2">体重推移</h4>
+        <div className="flex items-center justify-between">
+          <div className="text-center">
+            <p className="text-xs text-foreground/50">開始</p>
+            <p className="text-lg font-bold text-foreground">{startWeight || '--'}kg</p>
+          </div>
+          <div className="text-center">
+            <p className="text-xs text-foreground/50">現在</p>
+            <p className="text-lg font-bold text-sunrise-orange">{latestWeight || '--'}kg</p>
+          </div>
+          <div className="text-center">
+            <p className="text-xs text-foreground/50">目標</p>
+            <p className="text-lg font-bold text-foreground">{settings.targetWeight}kg</p>
+          </div>
+        </div>
+        {weightChange !== null && (
+          <div className="mt-2 text-center">
+            <span className={`text-sm font-bold ${weightChange >= 0 ? 'text-sunrise-green' : 'text-red-500'}`}>
+              {weightChange >= 0 ? '+' : ''}{weightChange.toFixed(1)}kg
+            </span>
+            {remaining !== null && remaining > 0 && (
+              <span className="text-xs text-foreground/50 ml-2">あと{remaining.toFixed(1)}kg</span>
+            )}
+          </div>
+        )}
+        {/* Simple weight chart */}
+        {weights.length >= 2 && (
+          <div className="mt-3 h-16 flex items-end gap-0.5">
+            {weights.slice(-14).map((w, i) => {
+              const min = Math.min(...weights.slice(-14).map(x => x.weight || 0));
+              const max = Math.max(...weights.slice(-14).map(x => x.weight || 0), min + 1);
+              const h = ((w.weight || 0) - min) / (max - min) * 100;
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center">
+                  <div
+                    className="w-full rounded-t-sm bg-sunrise-orange/60"
+                    style={{ height: `${Math.max(h, 8)}%` }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-white/60 rounded-xl p-3 border border-border/50 text-center">
+          <p className="text-2xl font-bold font-display text-indigo-600">{trainingDays}</p>
+          <p className="text-xs text-foreground/50">筋トレ日数</p>
+        </div>
+        <div className="bg-white/60 rounded-xl p-3 border border-border/50 text-center">
+          <p className="text-2xl font-bold font-display text-sunrise-green">{runningDays}</p>
+          <p className="text-xs text-foreground/50">ランニング日数</p>
+        </div>
+        <div className="bg-white/60 rounded-xl p-3 border border-border/50 text-center">
+          <p className="text-2xl font-bold font-display text-sunrise-orange">{totalDistance.toFixed(1)}</p>
+          <p className="text-xs text-foreground/50">総走行距離(km)</p>
+        </div>
+        <div className="bg-white/60 rounded-xl p-3 border border-border/50 text-center">
+          <p className="text-2xl font-bold font-display text-purple-600">{avgSleep ? `${avgSleep.toFixed(1)}h` : '--'}</p>
+          <p className="text-xs text-foreground/50">平均睡眠時間</p>
+        </div>
+      </div>
+
+      {/* Streak */}
+      <div className="bg-white/60 rounded-xl p-4 border border-border/50 mt-3 text-center">
+        <h4 className="text-xs font-bold text-foreground/50 uppercase tracking-wider mb-2">継続記録</h4>
+        <div className="flex justify-center gap-8">
+          <div>
+            <p className="text-2xl font-bold font-display text-indigo-600">{weights.length}</p>
+            <p className="text-xs text-foreground/50">総記録日数</p>
+          </div>
+        </div>
+        <p className="text-xs text-sunrise-orange font-medium mt-2">記録を続けよう！</p>
+      </div>
+    </div>
+  );
+}
+
+// Main Review Page - Order: AI, Muscle Heatmap, Running, Sleep, Comprehensive Analysis, Body Photo Gallery
 export default function Review() {
   return (
     <div className="px-4 pt-12 pb-4 space-y-4">
@@ -633,6 +746,7 @@ export default function Review() {
       <MuscleHeatmapView />
       <MonthlyDistance />
       <SleepChart />
+      <ComprehensiveAnalysis />
       <BodyPhotoGallery />
     </div>
   );
