@@ -181,6 +181,39 @@
   }
 }
 
+/* Time input alignment fix for Safari/iOS */
+input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: normal;
+  min-height: 3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+input[type="time"]::-webkit-date-and-time-value {
+  text-align: center;
+  margin: 0;
+  padding: 0;
+}
+
+input[type="time"]::-webkit-datetime-edit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+input[type="time"]::-webkit-datetime-edit-fields-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
 /* Custom scrollbar hide */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;

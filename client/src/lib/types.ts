@@ -65,10 +65,19 @@ export interface OhtaniSheet {
   categories: OhtaniSheetCategory[];
 }
 
+export type GoalMode = 'bulk' | 'maintain' | 'cut';
+
+export const GOAL_MODE_LABELS: Record<GoalMode, string> = {
+  bulk: 'バルクアップ（增量）',
+  maintain: '維持',
+  cut: '減量',
+};
+
 export interface AppSettings {
   targetWeight: number;
   startWeight: number;
   ohtaniSheet: OhtaniSheet;
+  goalMode: GoalMode;
 }
 
 export interface DailyRecord {

@@ -36,7 +36,8 @@ import {
   getAllScheduleDays,
 } from '@/lib/store';
 import { getAllPhotos } from '@/lib/photoDb';
-import type { MuscleGroup, MuscleHeatmap } from '@/lib/types';
+import type { MuscleGroup, MuscleHeatmap, GoalMode } from '@/lib/types';
+import { GOAL_MODE_LABELS } from '@/lib/types';
 
 // Muscle Heatmap SVG Component
 function MuscleHeatmapView() {
@@ -186,7 +187,12 @@ function MuscleHeatmapView() {
   );
 }
 
-// AI Advice Component - Detailed, practical, and helpful
+// ===== Goal-mode aware advice helpers =====
+function getGoalModeEmoji(mode: GoalMode): string {
+  return mode === 'bulk' ? '💪' : mode === 'maintain' ? '⚖️' : '🔥';
+}
+
+// AI Advice Component - Goal-mode aware, detailed, practical
 function AIAdvice() {
   const records = getAllTrainingRecords();
   const running = getAllRunningRecords();
@@ -194,6 +200,7 @@ function AIAdvice() {
   const bodyLogs = getAllBodyLogs();
   const schedule = getAllScheduleDays();
   const settings = getSettings();
+  const goalMode = settings.goalMode || 'bulk';
   
   const trainingDays = Object.keys(records).length;
   const runningDays = Object.keys(running).length;
@@ -201,13 +208,25 @@ function AIAdvice() {
   
   const getAdvice = (): { title: string; content: string; icon: string }[] => {
     const advices: { title: string; content: string; icon: string }[] = [];
+
+    // Goal mode banner
+    advices.push({
+      icon: getGoalModeEmoji(goalMode),
+      title: `現在のモード: ${GOAL_MODE_LABELS[goalMode]}`,
+      content: goalMode === 'bulk'
+        ? '筋肉量を増やしながら体重を増やすフェーズです。カロリーは基礎代謝+300-500kcal、タンパク質は体重×1.6-2.2g/日を目安に摂取しましょう。'
+        : goalMode === 'maintain'
+        ? '現在の体重と体型を維持するフェーズです。摂取カロリーと消費カロリーのバランスを意識し、トレーニングの質を保ちましょう。'
+        : '体脂肪を減らして体重を落とすフェーズです。カロリーは基礎代謝-300~500kcal、タンパク質は体重×2.0-2.4g/日で筋肉の分解を防ぎましょう。',
+    });
     
     if (trainingDays === 0 && runningDays === 0) {
-      return [{
+      advices.push({
         icon: '📝',
         title: 'まずは記録を始めよう',
         content: 'トレーニングを記録していくと、あなたの習慣に合わせたパーソナライズされたアドバイスが表示されます。スケジュールタブから今週のメニューを設定して、最初の一歩を踏み出しましょう。',
-      }];
+      });
+      return advices;
     }
     
     // Muscle balance analysis
@@ -229,18 +248,18 @@ function AIAdvice() {
           advices.push({
             icon: '⚖️',
             title: '筋肉バランスに注意',
-            content: `「${most[0]}」を${most[1]}回鍛えている一方、「${least[0]}」は${least[1]}回です。特定部位に偏ると姿勢の歪みや怪我のリスクが高まります。週に1回は「${least[0]}」の日を入れることをおすすめします。リーンバルクでは全身のバランスが見た目の印象を大きく左右します。`,
+            content: `「${most[0]}」を${most[1]}回鍛えている一方、「${least[0]}」は${least[1]}回です。特定部位に偏ると姿勢の歪みや怪我のリスクが高まります。週に1回は「${least[0]}」の日を入れることをおすすめします。`,
           });
         } else {
           advices.push({
             icon: '✅',
             title: 'バランスの良いトレーニング',
-            content: `各部位をバランスよく鍛えられています。最多は「${most[0]}」(${most[1]}回)、最少は「${least[0]}」(${least[1]}回)。この調子で全身まんべんなく鍛え続けましょう。バランスの良いトレーニングは怪我の予防にもつながります。`,
+            content: `各部位をバランスよく鍛えられています。最多は「${most[0]}」(${most[1]}回)、最少は「${least[0]}」(${least[1]}回)。この調子で全身まんべんなく鍛え続けましょう。`,
           });
         }
       }
       
-      // Training frequency advice
+      // Training frequency advice (goal-mode aware)
       const now = new Date();
       const thirtyDaysAgo = new Date(now);
       thirtyDaysAgo.setDate(now.getDate() - 30);
@@ -249,72 +268,133 @@ function AIAdvice() {
       
       if (recentTraining.length > 0) {
         const freq = parseFloat(weeklyAvg);
-        if (freq < 2) {
-          advices.push({
-            icon: '📈',
-            title: 'トレーニング頻度を上げよう',
-            content: `過去30日間の平均は週${weeklyAvg}回です。筋肥大（バルクアップ）には週3-5回のトレーニングが理想的です。まずは週3回を目標にしてみましょう。1回のトレーニング時間は45-60分で十分です。無理のない範囲で少しずつ頻度を上げていきましょう。`,
-          });
-        } else if (freq >= 5) {
-          advices.push({
-            icon: '⚠️',
-            title: 'オーバートレーニングに注意',
-            content: `過去30日間の平均は週${weeklyAvg}回とかなりハイペースです。筋肉は休息中に成長するため、週に最低1-2日の完全休養日を確保しましょう。疲労が蓄積すると免疫力低下や怪我のリスクが高まります。質の高いトレーニングと十分な休養のバランスが大切です。`,
-          });
+        if (goalMode === 'cut') {
+          // 減量モード: 筋トレ頻度は維持が重要
+          if (freq < 2) {
+            advices.push({
+              icon: '📈',
+              title: '減量中もトレーニングを維持しよう',
+              content: `過去30日間の平均は週${weeklyAvg}回です。減量中は筋肉の分解を防ぐため、週3-4回のトレーニングを維持することが重要です。重量を落としすぎず、セット数を減らして回復を確保しましょう。`,
+            });
+          } else if (freq >= 5) {
+            advices.push({
+              icon: '⚠️',
+              title: '減量中のオーバートレーニングに注意',
+              content: `過去30日間の平均は週${weeklyAvg}回です。減量中はカロリー不足のため回復力が低下しています。週4回程度に抑え、十分な休養を取りましょう。無理をすると筋肉の分解が加速します。`,
+            });
+          } else {
+            advices.push({
+              icon: '💪',
+              title: '良いトレーニングペース',
+              content: `過去30日間の平均は週${weeklyAvg}回で、減量中に筋肉を維持するのに適したペースです。重量をなるべく維持し、レップ数やセット数で調整しましょう。`,
+            });
+          }
+        } else if (goalMode === 'maintain') {
+          if (freq < 2) {
+            advices.push({
+              icon: '📈',
+              title: 'トレーニング頻度を上げよう',
+              content: `過去30日間の平均は週${weeklyAvg}回です。体型維持には週3-4回のトレーニングが理想的です。現在の筋肉量を維持するために、少しずつ頻度を上げていきましょう。`,
+            });
+          } else {
+            advices.push({
+              icon: '💪',
+              title: '良いトレーニングペース',
+              content: `過去30日間の平均は週${weeklyAvg}回で、体型維持に適したペースです。この頻度を維持しながら、フォームの改善や新しい種目にチャレンジしてみましょう。`,
+            });
+          }
         } else {
-          advices.push({
-            icon: '💪',
-            title: '良いトレーニングペース',
-            content: `過去30日間の平均は週${weeklyAvg}回で、筋肥大に適したペースです。この頻度を維持しながら、徐々に重量やセット数を増やす「漸進性過負荷」を意識すると、さらに効果的です。`,
-          });
+          // バルクアップモード
+          if (freq < 2) {
+            advices.push({
+              icon: '📈',
+              title: 'トレーニング頻度を上げよう',
+              content: `過去30日間の平均は週${weeklyAvg}回です。筋肥大（バルクアップ）には週3-5回のトレーニングが理想的です。まずは週3回を目標にしてみましょう。1回のトレーニング時間は45-60分で十分です。`,
+            });
+          } else if (freq >= 5) {
+            advices.push({
+              icon: '⚠️',
+              title: 'オーバートレーニングに注意',
+              content: `過去30日間の平均は週${weeklyAvg}回とかなりハイペースです。筋肉は休息中に成長するため、週に最低1-2日の完全休養日を確保しましょう。質の高いトレーニングと十分な休養のバランスが大切です。`,
+            });
+          } else {
+            advices.push({
+              icon: '💪',
+              title: '良いトレーニングペース',
+              content: `過去30日間の平均は週${weeklyAvg}回で、筋肥大に適したペースです。この頻度を維持しながら、徐々に重量やセット数を増やす「漸進性過負荷」を意識すると、さらに効果的です。`,
+            });
+          }
         }
       }
     }
     
-    // Running advice
+    // Running advice (goal-mode aware)
     if (runningDays > 0) {
       const avgDist = totalDistance / runningDays;
-      if (avgDist < 3) {
+      if (goalMode === 'cut') {
         advices.push({
           icon: '🏃',
-          title: 'ランニング距離を伸ばそう',
-          content: `現在の平均距離は${avgDist.toFixed(1)}km/回です。バルクアップ中の有酸素運動は、脂肪の蓄積を抑えつつ心肺機能を維持するのに重要です。まずは3-5kmを目標に、週2-3回のペースで走りましょう。ただし、やりすぎると筋肉の分解が進むので、1回30分以内が目安です。`,
+          title: avgDist >= 3 ? 'ランニングで脂肪燃焼中' : 'ランニング距離を伸ばそう',
+          content: avgDist >= 3
+            ? `平均${avgDist.toFixed(1)}km/回のペースで走れています。減量中の有酸素運動は脂肪燃焼に非常に効果的です。ただし、1回45分以上の有酸素は筋肉の分解リスクが高まるので注意。HIIT（高強度インターバル）も取り入れると効率的です。`
+            : `現在の平均距離は${avgDist.toFixed(1)}km/回です。減量中は有酸素運動が脂肪燃焼の強い味方です。3-5kmを目標に、週3-4回のペースで走りましょう。筋トレ後に走ると脂肪燃焼効果がさらに高まります。`,
+        });
+      } else if (goalMode === 'maintain') {
+        advices.push({
+          icon: '🏃',
+          title: 'ランニングで体力維持',
+          content: `平均${avgDist.toFixed(1)}km/回のペースで走れています（合計${totalDistance.toFixed(1)}km）。体型維持には適度な有酸素運動が効果的です。週2-3回、30分程度のランニングで心肺機能を維持しましょう。`,
         });
       } else {
-        advices.push({
-          icon: '🏃',
-          title: 'ランニングは順調',
-          content: `平均${avgDist.toFixed(1)}km/回のペースで走れています（合計${totalDistance.toFixed(1)}km）。バルクアップ中は有酸素運動のやりすぎに注意。筋トレ後のランニングは脂肪燃焼効果が高いですが、30分以内に抑えると筋肉の分解を最小限にできます。`,
-        });
+        // バルクアップ
+        if (avgDist < 3) {
+          advices.push({
+            icon: '🏃',
+            title: 'ランニング距離を伸ばそう',
+            content: `現在の平均距離は${avgDist.toFixed(1)}km/回です。バルクアップ中の有酸素運動は、脂肪の蓄積を抑えつつ心肺機能を維持するのに重要です。まずは3-5kmを目標に、週2-3回のペースで走りましょう。ただし、やりすぎると筋肉の分解が進むので、1回30分以内が目安です。`,
+          });
+        } else {
+          advices.push({
+            icon: '🏃',
+            title: 'ランニングは順調',
+            content: `平均${avgDist.toFixed(1)}km/回のペースで走れています（合計${totalDistance.toFixed(1)}km）。バルクアップ中は有酸素運動のやりすぎに注意。筋トレ後のランニングは脂肪燃焼効果が高いですが、30分以内に抑えると筋肉の分解を最小限にできます。`,
+          });
+        }
       }
     }
 
-    // Sleep advice
+    // Sleep advice (goal-mode aware)
     const sleepArr = Object.values(sleepRecords).filter((s) => s.sleepHours);
     if (sleepArr.length > 0) {
       const avgSleep = sleepArr.reduce((sum, s) => sum + (s.sleepHours || 0), 0) / sleepArr.length;
+      const sleepGoalText = goalMode === 'cut'
+        ? '減量中は睡眠不足がストレスホルモン（コルチゾール）を増加させ、食欲増進と筋肉分解を促進します。'
+        : goalMode === 'maintain'
+        ? '体型維持には安定した睡眠リズムが重要です。'
+        : '睡眠中に分泌される成長ホルモンは筋肉の修復・成長に不可欠です。';
+
       if (avgSleep < 6) {
         advices.push({
           icon: '😴',
           title: '睡眠を改善しよう（重要）',
-          content: `平均睡眠時間は${avgSleep.toFixed(1)}時間で、かなり不足しています。睡眠中に分泌される成長ホルモンは筋肉の修復・成長に不可欠です。睡眠不足はテストステロンの低下にもつながり、筋肥大の効率が大幅に落ちます。7-8時間の睡眠を確保するために、就寝1時間前のスマホ使用を控え、寝室を暗くすることから始めましょう。`,
+          content: `平均睡眠時間は${avgSleep.toFixed(1)}時間で、かなり不足しています。${sleepGoalText}7-8時間の睡眠を確保するために、就寝1時間前のスマホ使用を控え、寝室を暗くすることから始めましょう。`,
         });
       } else if (avgSleep < 7) {
         advices.push({
           icon: '🌙',
           title: '睡眠をもう少し確保しよう',
-          content: `平均${avgSleep.toFixed(1)}時間の睡眠は悪くないですが、筋肥大の最適値は7-9時間です。あと30分-1時間早く寝ることで、成長ホルモンの分泌が増え、トレーニング効果が向上します。昼寝（20分程度）も回復に効果的です。`,
+          content: `平均${avgSleep.toFixed(1)}時間の睡眠は悪くないですが、最適値は7-9時間です。${sleepGoalText}あと30分-1時間早く寝ることで、回復効果が向上します。`,
         });
       } else {
         advices.push({
           icon: '✨',
           title: '睡眠は理想的',
-          content: `平均${avgSleep.toFixed(1)}時間の睡眠は筋肥大に理想的な範囲です。質の良い睡眠が筋肉の回復と成長をしっかりサポートしています。この習慣を維持しましょう。`,
+          content: `平均${avgSleep.toFixed(1)}時間の睡眠は理想的な範囲です。${sleepGoalText}この習慣を維持しましょう。`,
         });
       }
     }
 
-    // Weight progress advice
+    // Weight progress advice (goal-mode aware)
     const weights = Object.values(bodyLogs)
       .filter((b) => b.weight)
       .sort((a, b) => a.date.localeCompare(b.date));
@@ -325,26 +405,54 @@ function AIAdvice() {
       const target = settings.targetWeight;
       const remaining = target - latest;
       
-      if (change > 0 && remaining > 0) {
-        advices.push({
-          icon: '📊',
-          title: '体重は増加傾向',
-          content: `開始${first}kg → 現在${latest}kg（+${change.toFixed(1)}kg）。目標${target}kgまであと${remaining.toFixed(1)}kgです。リーンバルクの理想的な増量ペースは月0.5-1kgです。急激な増量は脂肪の蓄積につながるので、タンパク質を体重×1.6-2.2g/日摂取しながら、ゆっくり増やしていきましょう。`,
-        });
-      } else if (change <= 0) {
-        advices.push({
-          icon: '📊',
-          title: '体重が減少傾向',
-          content: `開始${first}kg → 現在${latest}kg（${change.toFixed(1)}kg）。バルクアップが目標なら、カロリー摂取量を見直しましょう。基礎代謝+300-500kcalの摂取が目安です。特にトレーニング後30分以内のタンパク質摂取（20-30g）を意識すると効果的です。`,
-        });
+      if (goalMode === 'bulk') {
+        if (change > 0 && remaining > 0) {
+          advices.push({
+            icon: '📊',
+            title: '体重は増加傾向 — 順調です',
+            content: `開始${first}kg → 現在${latest}kg（+${change.toFixed(1)}kg）。目標${target}kgまであと${remaining.toFixed(1)}kgです。リーンバルクの理想的な増量ペースは月0.5-1kgです。急激な増量は脂肪の蓄積につながるので、タンパク質を体重×1.6-2.2g/日摂取しながら、ゆっくり増やしていきましょう。`,
+          });
+        } else if (change <= 0) {
+          advices.push({
+            icon: '📊',
+            title: '体重が減少傾向 — カロリーを見直そう',
+            content: `開始${first}kg → 現在${latest}kg（${change.toFixed(1)}kg）。バルクアップが目標なら、カロリー摂取量を見直しましょう。基礎代謝+300-500kcalの摂取が目安です。特にトレーニング後30分以内のタンパク質摂取（20-30g）を意識すると効果的です。`,
+          });
+        }
+      } else if (goalMode === 'cut') {
+        if (change < 0) {
+          advices.push({
+            icon: '📊',
+            title: '体重は減少傾向 — 順調です',
+            content: `開始${first}kg → 現在${latest}kg（${change.toFixed(1)}kg）。${target < latest ? `目標${target}kgまであと${(latest - target).toFixed(1)}kgです。` : ''}理想的な減量ペースは週0.5-1%の体重減少です。急激な減量は筋肉の分解を招くので、タンパク質を体重×2.0-2.4g/日摂取し、筋トレの重量を維持することを意識しましょう。`,
+          });
+        } else if (change >= 0) {
+          advices.push({
+            icon: '📊',
+            title: '体重が増加傾向 — カロリーを見直そう',
+            content: `開始${first}kg → 現在${latest}kg（+${change.toFixed(1)}kg）。減量が目標なら、摂取カロリーを見直しましょう。基礎代謝-300~500kcalの摂取が目安です。食事の記録をつけて、隠れたカロリーを見つけましょう。`,
+          });
+        }
+      } else {
+        // 維持モード
+        const absChange = Math.abs(change);
+        if (absChange <= 1) {
+          advices.push({
+            icon: '📊',
+            title: '体重は安定しています',
+            content: `開始${first}kg → 現在${latest}kg（${change >= 0 ? '+' : ''}${change.toFixed(1)}kg）。体重の変動が1kg以内で安定しています。この調子でバランスの良い食事とトレーニングを続けましょう。`,
+          });
+        } else {
+          advices.push({
+            icon: '📊',
+            title: `体重が${change > 0 ? '増加' : '減少'}傾向`,
+            content: `開始${first}kg → 現在${latest}kg（${change >= 0 ? '+' : ''}${change.toFixed(1)}kg）。維持モードでは体重の変動を±1kg以内に抑えるのが理想です。${change > 0 ? '食事量を少し減らすか、有酸素運動を増やしましょう。' : '食事量を少し増やすか、消費カロリーを見直しましょう。'}`,
+          });
+        }
       }
     }
 
-    return advices.length > 0 ? advices : [{
-      icon: '💡',
-      title: 'データを蓄積中',
-      content: 'もう少しデータが集まると、より具体的なアドバイスが表示されます。毎日の記録を続けましょう。',
-    }];
+    return advices;
   };
 
   const advices = getAdvice();
@@ -356,7 +464,7 @@ function AIAdvice() {
       </h3>
       <div className="space-y-4">
         {advices.map((advice, i) => (
-          <div key={i} className="bg-white/60 rounded-xl p-4 border border-border/50">
+          <div key={i} className={`bg-white/60 rounded-xl p-4 border ${i === 0 ? 'border-sunrise-orange/40 bg-sunrise-orange/5' : 'border-border/50'}`}>
             <div className="flex items-center gap-2 mb-2">
               <span className="text-lg">{advice.icon}</span>
               <h4 className="text-sm font-bold text-foreground">{advice.title}</h4>

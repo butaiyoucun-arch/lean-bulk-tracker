@@ -97,6 +97,100 @@ export async function deletePhoto(date: string): Promise<void> {
   });
 }
 
+// ===== 写真の枚数を取得 =====
+export async function getPhotoCount(): Promise<number> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.count();
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = (event) => reject((event.target as IDBRequest).error);
+
+    tx.oncomplete = () => db.close();
+  });
+}
+
+// ===== IndexedDBの推定使用量を取得 =====
+export async function getStorageEstimate(): Promise<{ usage: number; quota: number; usagePercent: number }> {
+  if (navigator.storage && navigator.storage.estimate) {
+    const estimate = await navigator.storage.estimate();
+    const usage = estimate.usage || 0;
+    const quota = estimate.quota || 0;
+    const usagePercent = quota > 0 ? Math.round((usage / quota) * 100) : 0;
+    return { usage, quota, usagePercent };
+  }
+  // StorageManager非対応ブラウザ向けフォールバック
+  return { usage: 0, quota: 0, usagePercent: 0 };
+}
+
+// ===== ストレージ永続化をリクエスト =====
+// ブラウザがストレージを自動的にクリアしないよう永続化を要求する
+export async function requestPersistentStorage(): Promise<boolean> {
+  if (navigator.storage && navigator.storage.persist) {
+    return await navigator.storage.persist();
+  }
+  return false;
+}
+
+// ===== 全写真をエクスポート用に取得（Blob形式） =====
+// JSON内にbase64写真を含めた完全バックアップ用
+export async function exportAllPhotosForBackup(): Promise<{ date: string; photo: string }[]> {
+  return getAllPhotos();
+}
+
+// ===== バックアップから写真をインポート =====
+export async function importPhotosFromBackup(photos: { date: string; photo: string }[]): Promise<number> {
+  let imported = 0;
+  for (const p of photos) {
+    if (p.date && p.photo) {
+      await savePhoto(p.date, p.photo);
+      imported++;
+    }
+  }
+  return imported;
+}
+
+// ===== データ整合性チェック =====
+// localStorageのbodyLogsとIndexedDBの写真データの整合性を検証する
+export async function checkDataIntegrity(): Promise<{
+  bodyLogDates: number;
+  photoDates: number;
+  orphanedPhotos: string[];
+  status: 'ok' | 'warning';
+  message: string;
+}> {
+  const photos = await getAllPhotos();
+  const photoDates = new Set(photos.map(p => p.date));
+
+  let bodyLogDates = 0;
+  try {
+    const raw = localStorage.getItem('lbt_body_logs');
+    if (raw) {
+      const logs = JSON.parse(raw) as Record<string, { date: string }>;
+      bodyLogDates = Object.keys(logs).length;
+    }
+  } catch { /* ignore */ }
+
+  // 写真はあるがbodyLogが無い日付（孤立写真）
+  const orphanedPhotos: string[] = [];
+  const rawLogs = localStorage.getItem('lbt_body_logs');
+  const logDates = rawLogs ? new Set(Object.keys(JSON.parse(rawLogs))) : new Set<string>();
+  for (const d of photoDates) {
+    if (!logDates.has(d)) {
+      orphanedPhotos.push(d);
+    }
+  }
+
+  const status = orphanedPhotos.length > 0 ? 'warning' : 'ok';
+  const message = status === 'ok'
+    ? `正常: ${photoDates.size}枚の写真、${bodyLogDates}件のボディログ`
+    : `注意: ${orphanedPhotos.length}枚の写真にボディログがありません`;
+
+  return { bodyLogDates, photoDates: photoDates.size, orphanedPhotos, status, message };
+}
+
 // ===== localStorageの既存写真データをIndexedDBに移行 =====
 // 初回起動時に一度だけ実行し、既存データを失わないようにする
 export async function migratePhotosFromLocalStorage(): Promise<void> {

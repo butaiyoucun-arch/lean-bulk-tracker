@@ -205,11 +205,17 @@ export function resetMuscleHeatmap(): void {
 
 // ===== Settings =====
 export function getSettings(): AppSettings {
-  return loadJSON<AppSettings>(STORAGE_KEYS.SETTINGS, {
+  const settings = loadJSON<AppSettings>(STORAGE_KEYS.SETTINGS, {
     targetWeight: 75,
     startWeight: 68,
     ohtaniSheet: DEFAULT_OHTANI_SHEET,
+    goalMode: 'bulk',
   });
+  // 既存データにgoalModeが無い場合の後方互換
+  if (!settings.goalMode) {
+    settings.goalMode = 'bulk';
+  }
+  return settings;
 }
 
 export function saveSettings(settings: AppSettings): void {
@@ -271,6 +277,81 @@ export function exportAllData(): {
     muscleHeatmap: getMuscleHeatmap(),
     settings: getSettings(),
   };
+}
+
+// ===== Data Import (localStorage部分) =====
+export function importAllData(data: {
+  sleepRecords?: Record<string, SleepRecord>;
+  bodyLogs?: Record<string, BodyLog>;
+  schedule?: Record<string, ScheduleDay>;
+  runningRecords?: Record<string, RunningRecord>;
+  trainingRecords?: Record<string, TrainingDayRecord>;
+  muscleHeatmap?: MuscleHeatmap;
+  settings?: AppSettings;
+}): { imported: number; errors: string[] } {
+  const errors: string[] = [];
+  let imported = 0;
+
+  try {
+    if (data.sleepRecords) {
+      const existing = getAllSleepRecords();
+      const merged = { ...existing, ...data.sleepRecords };
+      saveJSON(STORAGE_KEYS.SLEEP_RECORDS, merged);
+      imported += Object.keys(data.sleepRecords).length;
+    }
+  } catch { errors.push('睡眠記録のインポートに失敗'); }
+
+  try {
+    if (data.bodyLogs) {
+      const existing = getAllBodyLogs();
+      const merged = { ...existing, ...data.bodyLogs };
+      saveJSON(STORAGE_KEYS.BODY_LOGS, merged);
+      imported += Object.keys(data.bodyLogs).length;
+    }
+  } catch { errors.push('ボディログのインポートに失敗'); }
+
+  try {
+    if (data.schedule) {
+      const existing = getAllScheduleDays();
+      const merged = { ...existing, ...data.schedule };
+      saveJSON(STORAGE_KEYS.SCHEDULE, merged);
+      imported += Object.keys(data.schedule).length;
+    }
+  } catch { errors.push('スケジュールのインポートに失敗'); }
+
+  try {
+    if (data.runningRecords) {
+      const existing = getAllRunningRecords();
+      const merged = { ...existing, ...data.runningRecords };
+      saveJSON(STORAGE_KEYS.RUNNING_RECORDS, merged);
+      imported += Object.keys(data.runningRecords).length;
+    }
+  } catch { errors.push('ランニング記録のインポートに失敗'); }
+
+  try {
+    if (data.trainingRecords) {
+      const existing = getAllTrainingRecords();
+      const merged = { ...existing, ...data.trainingRecords };
+      saveJSON(STORAGE_KEYS.TRAINING_RECORDS, merged);
+      imported += Object.keys(data.trainingRecords).length;
+    }
+  } catch { errors.push('トレーニング記録のインポートに失敗'); }
+
+  try {
+    if (data.muscleHeatmap) {
+      saveMuscleHeatmap(data.muscleHeatmap);
+      imported++;
+    }
+  } catch { errors.push('ヒートマップのインポートに失敗'); }
+
+  try {
+    if (data.settings) {
+      saveSettings(data.settings);
+      imported++;
+    }
+  } catch { errors.push('設定のインポートに失敗'); }
+
+  return { imported, errors };
 }
 
 // ===== Calculate Sleep Hours =====
