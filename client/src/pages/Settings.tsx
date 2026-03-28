@@ -41,15 +41,34 @@ import {
 import type { AppSettings, OhtaniSheet, OhtaniSheetCategory, GoalMode } from '@/lib/types';
 import { GOAL_MODE_LABELS } from '@/lib/types';
 
-// ===== Goal Mode Selector =====
+// ===== Goal Mode & Weight Settings (統合コンポーネント) =====
 function GoalModeSelector() {
   const [settings, setSettingsState] = useState<AppSettings>(() => getSettings());
+  const [startWeight, setStartWeight] = useState(() => getSettings().startWeight.toString());
+  const [targetWeight, setTargetWeight] = useState(() => getSettings().targetWeight.toString());
 
   const handleModeChange = (mode: GoalMode) => {
-    const updated = { ...settings, goalMode: mode };
+    // 最新のsettingsをlocalStorageから再取得して上書き防止
+    const latest = getSettings();
+    const updated = { ...latest, goalMode: mode };
     saveSettings(updated);
     setSettingsState(updated);
     toast.success(`目標を「${GOAL_MODE_LABELS[mode]}」に変更しました`);
+  };
+
+  const handleWeightSave = () => {
+    const sw = parseFloat(startWeight);
+    const tw = parseFloat(targetWeight);
+    if (isNaN(sw) || isNaN(tw)) {
+      toast.error('正しい値を入力してください');
+      return;
+    }
+    // 最新のsettingsをlocalStorageから再取得して上書き防止
+    const latest = getSettings();
+    const updated = { ...latest, startWeight: sw, targetWeight: tw };
+    saveSettings(updated);
+    setSettingsState(updated);
+    toast.success('体重設定を保存しました');
   };
 
   const modes: { mode: GoalMode; emoji: string; description: string }[] = [
@@ -59,34 +78,65 @@ function GoalModeSelector() {
   ];
 
   return (
-    <div className="card-neu p-5 space-y-3">
-      <h3 className="text-sm font-semibold">目標モード</h3>
-      <p className="text-xs text-muted-foreground">
-        現在のフェーズに合わせて目標を設定すると、振り返りのアドバイスが変わります
-      </p>
-      <div className="space-y-2">
-        {modes.map(({ mode, emoji, description }) => (
-          <button
-            key={mode}
-            onClick={() => handleModeChange(mode)}
-            className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all tap-active ${
-              settings.goalMode === mode
-                ? 'bg-sunrise-orange/15 border-2 border-sunrise-orange/50 shadow-sm'
-                : 'bg-muted/30 border-2 border-transparent hover:bg-muted/50'
-            }`}
-          >
-            <span className="text-2xl">{emoji}</span>
-            <div className="flex-1">
-              <span className={`text-sm font-bold ${settings.goalMode === mode ? 'text-sunrise-orange' : 'text-foreground'}`}>
-                {GOAL_MODE_LABELS[mode]}
-              </span>
-              <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
-            </div>
-            {settings.goalMode === mode && (
-              <span className="text-sunrise-orange text-xs font-bold">選択中</span>
-            )}
-          </button>
-        ))}
+    <div className="card-neu p-5 space-y-4">
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold">目標モード</h3>
+        <p className="text-xs text-muted-foreground">
+          現在のフェーズに合わせて目標を設定すると、振り返りのアドバイスが変わります
+        </p>
+        <div className="space-y-2">
+          {modes.map(({ mode, emoji, description }) => (
+            <button
+              key={mode}
+              onClick={() => handleModeChange(mode)}
+              className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all tap-active ${
+                settings.goalMode === mode
+                  ? 'bg-sunrise-orange/15 border-2 border-sunrise-orange/50 shadow-sm'
+                  : 'bg-muted/30 border-2 border-transparent hover:bg-muted/50'
+              }`}
+            >
+              <span className="text-2xl">{emoji}</span>
+              <div className="flex-1">
+                <span className={`text-sm font-bold ${settings.goalMode === mode ? 'text-sunrise-orange' : 'text-foreground'}`}>
+                  {GOAL_MODE_LABELS[mode]}
+                </span>
+                <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+              </div>
+              {settings.goalMode === mode && (
+                <span className="text-sunrise-orange text-xs font-bold">選択中</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="border-t pt-4 space-y-3">
+        <h3 className="text-sm font-semibold">体重設定</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-muted-foreground">開始体重 (kg)</label>
+            <Input
+              type="number"
+              step="0.1"
+              value={startWeight}
+              onChange={(e) => setStartWeight(e.target.value)}
+              className="mt-1"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">目標体重 (kg)</label>
+            <Input
+              type="number"
+              step="0.1"
+              value={targetWeight}
+              onChange={(e) => setTargetWeight(e.target.value)}
+              className="mt-1"
+            />
+          </div>
+        </div>
+        <Button onClick={handleWeightSave} className="w-full bg-sunrise-orange hover:bg-sunrise-orange/90 text-white">
+          体重設定を保存
+        </Button>
       </div>
     </div>
   );
@@ -389,55 +439,7 @@ function StorageHealth() {
   );
 }
 
-function WeightSettings() {
-  const [settings, setSettingsState] = useState<AppSettings>(() => getSettings());
-  const [startWeight, setStartWeight] = useState(settings.startWeight.toString());
-  const [targetWeight, setTargetWeight] = useState(settings.targetWeight.toString());
-
-  const handleSave = () => {
-    const sw = parseFloat(startWeight);
-    const tw = parseFloat(targetWeight);
-    if (isNaN(sw) || isNaN(tw)) {
-      toast.error('正しい値を入力してください');
-      return;
-    }
-    const updated = { ...settings, startWeight: sw, targetWeight: tw };
-    saveSettings(updated);
-    setSettingsState(updated);
-    toast.success('体重設定を保存しました');
-  };
-
-  return (
-    <div className="card-neu p-5 space-y-3">
-      <h3 className="text-sm font-semibold">体重設定</h3>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs text-muted-foreground">開始体重 (kg)</label>
-          <Input
-            type="number"
-            step="0.1"
-            value={startWeight}
-            onChange={(e) => setStartWeight(e.target.value)}
-            className="mt-1"
-          />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground">目標体重 (kg)</label>
-          <Input
-            type="number"
-            step="0.1"
-            value={targetWeight}
-            onChange={(e) => setTargetWeight(e.target.value)}
-            className="mt-1"
-          />
-        </div>
-      </div>
-      <Button onClick={handleSave} className="w-full bg-sunrise-orange hover:bg-sunrise-orange/90 text-white">
-        保存
-      </Button>
-    </div>
-  );
-}
+// WeightSettings は GoalModeSelector に統合済み
 
 function OhtaniSheetManager() {
   const [sheet, setSheet] = useState<OhtaniSheet>(() => getOhtaniSheet());
@@ -630,7 +632,6 @@ export default function Settings() {
       </div>
 
       <GoalModeSelector />
-      <WeightSettings />
       <OhtaniSheetManager />
       <FullBackupRestore />
       <CsvExport />
