@@ -88,14 +88,19 @@ export function getAllSleepRecords(): Record<string, SleepRecord> {
 }
 
 // ===== Body Logs =====
+// 注意: photoフィールドはIndexedDB（photoDb.ts）で管理します。
+// localStorageには体重データのみ保存し、写真は別途IndexedDBから非同期取得してください。
 export function getBodyLog(date: string): BodyLog {
   const logs = loadJSON<Record<string, BodyLog>>(STORAGE_KEYS.BODY_LOGS, {});
+  // photoはIndexedDB管理のため、localStorageからは常にnullを返す
   return logs[date] || { date, weight: null, photo: null };
 }
 
 export function saveBodyLog(log: BodyLog): void {
   const logs = loadJSON<Record<string, BodyLog>>(STORAGE_KEYS.BODY_LOGS, {});
-  logs[log.date] = log;
+  // photoはIndexedDB管理のため、localStorageには保存しない
+  const { photo: _photo, ...logWithoutPhoto } = log;
+  logs[log.date] = { ...logWithoutPhoto, photo: null };
   saveJSON(STORAGE_KEYS.BODY_LOGS, logs);
 }
 

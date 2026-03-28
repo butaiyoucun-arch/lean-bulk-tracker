@@ -23,6 +23,7 @@ import {
   formatDate,
   getOhtaniSheet,
 } from '@/lib/store';
+import { savePhoto, getPhoto, migratePhotosFromLocalStorage } from '@/lib/photoDb';
 import type { SleepRecord, BodyLog } from '@/lib/types';
 import { DAY_NAMES } from '@/lib/types';
 
@@ -138,6 +139,8 @@ export default function Home() {
 
   const [sleep, setSleep] = useState<SleepRecord>(() => getSleepRecord(today));
   const [body, setBody] = useState<BodyLog>(() => getBodyLog(today));
+  // IndexedDBから取得した今日の写真URL（表示用）
+  const [todayPhotoUrl, setTodayPhotoUrl] = useState<string | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [showMotivation, setShowMotivation] = useState(false);
   const [motivationData, setMotivationData] = useState<{ category: string; item: string; message: string } | null>(null);
@@ -149,6 +152,18 @@ export default function Home() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const albumInputRef = useRef<HTMLInputElement>(null);
   const schedule = getScheduleDay(today);
+
+  // 初回マウント時: localStorageからIndexedDBへの移行 + 今日の写真を読み込む
+  useEffect(() => {
+    const init = async () => {
+      // 既存データの移行（初回のみ）
+      await migratePhotosFromLocalStorage();
+      // 今日の写真をIndexedDBから取得
+      const photo = await getPhoto(today);
+      setTodayPhotoUrl(photo);
+    };
+    init();
+  }, [today]);
 
   useEffect(() => {
     setSleep(getSleepRecord(today));
@@ -210,18 +225,31 @@ export default function Home() {
     toast.success('時間を更新しました');
   };
 
+  // 写真をIndexedDBに保存する（大容量対応）
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       const dataUrl = ev.target?.result as string;
-      const updated = { ...body, photo: dataUrl };
-      setBody(updated);
-      saveBodyLog(updated);
-      toast.success('ボディフォトを保存しました');
+      try {
+        // IndexedDBに保存（localStorageには保存しない）
+        await savePhoto(today, dataUrl);
+        // 表示用のURLを更新
+        setTodayPhotoUrl(dataUrl);
+        // localStorageにはphotoなしで体重データのみ保存
+        const updated = { ...body, photo: null };
+        setBody(updated);
+        saveBodyLog(updated);
+        toast.success('ボディフォトを保存しました 📸');
+      } catch (err) {
+        console.error('[Home] 写真保存エラー:', err);
+        toast.error('写真の保存に失敗しました。ストレージ容量を確認してください。');
+      }
     };
     reader.readAsDataURL(file);
+    // 同じファイルを再選択できるようにリセット
+    e.target.value = '';
   };
 
   const handleWeightSave = () => {
@@ -349,10 +377,10 @@ export default function Home() {
       >
         <h3 className="text-sm font-bold text-foreground mb-3">モーニング・ボディログ</h3>
         <div className="flex items-center gap-4">
-          {/* Photo thumbnail */}
+          {/* Photo thumbnail（IndexedDBから取得した写真を表示） */}
           <div className="w-16 h-16 rounded-xl overflow-hidden bg-muted flex items-center justify-center shrink-0 border border-border">
-            {body.photo ? (
-              <img src={body.photo} alt="Body" className="w-full h-full object-cover" />
+            {todayPhotoUrl ? (
+              <img src={todayPhotoUrl} alt="Body" className="w-full h-full object-cover" />
             ) : (
               <Camera size={24} className="text-foreground/40" />
             )}

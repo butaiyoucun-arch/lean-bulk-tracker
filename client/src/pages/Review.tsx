@@ -35,6 +35,7 @@ import {
   parseDate,
   getAllScheduleDays,
 } from '@/lib/store';
+import { getAllPhotos } from '@/lib/photoDb';
 import type { MuscleGroup, MuscleHeatmap } from '@/lib/types';
 
 // Muscle Heatmap SVG Component
@@ -480,17 +481,29 @@ function SleepChart() {
 }
 
 // Body Photo Gallery Component - Swipe-based full-screen viewer
+// IndexedDBから写真を非同期で取得して表示する
 function BodyPhotoGallery() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [photos, setPhotos] = useState<{ date: string; photo: string }[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
-  
-  const photos = useMemo(() => {
-    const logs = getAllBodyLogs();
-    return Object.values(logs)
-      .filter((l) => l.photo)
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map((l) => ({ date: l.date, photo: l.photo! }));
+
+  // IndexedDBから全写真を非同期で読み込む
+  useEffect(() => {
+    const loadPhotos = async () => {
+      try {
+        setIsLoading(true);
+        const allPhotos = await getAllPhotos();
+        setPhotos(allPhotos);
+      } catch (err) {
+        console.error('[BodyPhotoGallery] 写真読み込みエラー:', err);
+        toast.error('写真の読み込みに失敗しました');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadPhotos();
   }, []);
 
   // Scroll to selected photo when opening viewer
@@ -501,6 +514,18 @@ function BodyPhotoGallery() {
       container.scrollTo({ left: targetScroll, behavior: 'instant' });
     }
   }, [selectedIndex]);
+
+  // ローディング中の表示
+  if (isLoading) {
+    return (
+      <div className="card-neu p-5">
+        <h3 className="text-sm font-semibold mb-2 text-foreground">ボディフォトギャラリー</h3>
+        <p className="text-sm text-foreground/60 text-center py-6">
+          写真を読み込み中...
+        </p>
+      </div>
+    );
+  }
 
   if (photos.length === 0) {
     return (
