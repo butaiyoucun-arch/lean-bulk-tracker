@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import Schedule from "./pages/Schedule";
 import Review from "./pages/Review";
+import Challenge from "./pages/Challenge";
 import Settings from "./pages/Settings";
 import BottomNav from "./components/BottomNav";
 
@@ -16,6 +17,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/schedule" component={Schedule} />
       <Route path="/review" component={Review} />
+      <Route path="/challenge" component={Challenge} />
       <Route path="/settings" component={Settings} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

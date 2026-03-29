@@ -508,23 +508,23 @@ function PastSleepEntry() {
               {savedRecord.sleepHours && ` / ${savedRecord.sleepHours.toFixed(1)}h`}
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">おやすみ時間</label>
+          <div className="flex gap-3">
+            <div className="flex-1 min-w-0">
+              <label className="text-xs text-muted-foreground mb-1 block w-full">おやすみ時間</label>
               <Input
                 type="time"
                 value={bedTime}
                 onChange={(e) => setBedTime(e.target.value)}
-                className="h-10 text-center"
+                className="h-10 text-center w-full"
               />
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">おはよう時間</label>
+            <div className="flex-1 min-w-0">
+              <label className="text-xs text-muted-foreground mb-1 block w-full">おはよう時間</label>
               <Input
                 type="time"
                 value={wakeTime}
                 onChange={(e) => setWakeTime(e.target.value)}
-                className="h-10 text-center"
+                className="h-10 text-center w-full"
               />
             </div>
           </div>

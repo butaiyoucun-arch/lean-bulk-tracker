@@ -35,16 +35,10 @@ import {
   parseDate,
   getAllScheduleDays,
   getWeightTrendData,
-  calculateStreak,
 } from '@/lib/store';
-import { getAllPhotos, getPhotoCount } from '@/lib/photoDb';
+import { getAllPhotos } from '@/lib/photoDb';
 import type { MuscleGroup, MuscleHeatmap, GoalMode } from '@/lib/types';
 import { GOAL_MODE_LABELS } from '@/lib/types';
-import {
-  getCurrentWeeklyChallenge,
-  getAchievements,
-  checkAndUnlockAchievements,
-} from '@/lib/weeklyChallenge';
 
 // Muscle Heatmap SVG Component
 function MuscleHeatmapView() {
@@ -221,10 +215,10 @@ function AIAdvice() {
       icon: getGoalModeEmoji(goalMode),
       title: `現在のモード: ${GOAL_MODE_LABELS[goalMode]}`,
       content: goalMode === 'bulk'
-        ? '筋肉量を増やしながら体重を増やすフェーズです。カロリーは基礎代謝+300-500kcal、タンパク質は体重×1.6-2.2g/日を目安に摂取しましょう。'
+        ? 'タンパク質 体重×1.6-2.2g/日、カロリー +300-500kcal。月0.5-1kgのペースでリーンバルク。'
         : goalMode === 'maintain'
-        ? '現在の体重と体型を維持するフェーズです。摂取カロリーと消費カロリーのバランスを意識し、トレーニングの質を保ちましょう。'
-        : '体脂肪を減らして体重を落とすフェーズです。カロリーは基礎代謝-300~500kcal、タンパク質は体重×2.0-2.4g/日で筋肉の分解を防ぎましょう。',
+        ? '摄取=消費のバランスを守る。トレーニングの質と頂点重量を維持することが目標。'
+        : 'タンパク質 体重×2.0-2.4g/日、カロリー -300-500kcal。週0.5-1%以内の減量が筋肉を守る。',
     });
     
     if (trainingDays === 0 && runningDays === 0) {
@@ -255,13 +249,13 @@ function AIAdvice() {
           advices.push({
             icon: '⚖️',
             title: '筋肉バランスに注意',
-            content: `「${most[0]}」を${most[1]}回鍛えている一方、「${least[0]}」は${least[1]}回です。特定部位に偏ると姿勢の歪みや怪我のリスクが高まります。週に1回は「${least[0]}」の日を入れることをおすすめします。`,
+            content: `${most[0]} ${most[1]}回 vs ${least[0]} ${least[1]}回—差が大きすぎます。週に1回「${least[0]}」を入れて均衡を回復しましょう。`,
           });
         } else {
           advices.push({
             icon: '✅',
-            title: 'バランスの良いトレーニング',
-            content: `各部位をバランスよく鍛えられています。最多は「${most[0]}」(${most[1]}回)、最少は「${least[0]}」(${least[1]}回)。この調子で全身まんべんなく鍛え続けましょう。`,
+            title: '全身バランス良好',
+            content: `最多 ${most[0]}(${most[1]}回) — 最少 ${least[0]}(${least[1]}回)。このバランスを維持してください。`,
           });
         }
       }
@@ -276,60 +270,34 @@ function AIAdvice() {
       if (recentTraining.length > 0) {
         const freq = parseFloat(weeklyAvg);
         if (goalMode === 'cut') {
-          // 減量モード: 筋トレ頻度は維持が重要
           if (freq < 2) {
-            advices.push({
-              icon: '📈',
-              title: '減量中もトレーニングを維持しよう',
-              content: `過去30日間の平均は週${weeklyAvg}回です。減量中は筋肉の分解を防ぐため、週3-4回のトレーニングを維持することが重要です。重量を落としすぎず、セット数を減らして回復を確保しましょう。`,
-            });
+            advices.push({ icon: '📈', title: '減量中もトレーニングを維持しよう',
+              content: `週${weeklyAvg}回—減量中は週3-4回が筋肉分解を防ぐ最低ライン。重量を落とさずセット数で調整。` });
           } else if (freq >= 5) {
-            advices.push({
-              icon: '⚠️',
-              title: '減量中のオーバートレーニングに注意',
-              content: `過去30日間の平均は週${weeklyAvg}回です。減量中はカロリー不足のため回復力が低下しています。週4回程度に抑え、十分な休養を取りましょう。無理をすると筋肉の分解が加速します。`,
-            });
+            advices.push({ icon: '⚠️', title: '減量中のオーバートレーニングに注意',
+              content: `週${weeklyAvg}回—カロリー不足時は回復力が低下。週4回に抑え、休養を優先。` });
           } else {
-            advices.push({
-              icon: '💪',
-              title: '良いトレーニングペース',
-              content: `過去30日間の平均は週${weeklyAvg}回で、減量中に筋肉を維持するのに適したペースです。重量をなるべく維持し、レップ数やセット数で調整しましょう。`,
-            });
+            advices.push({ icon: '💪', title: '良いトレーニングペース',
+              content: `週${weeklyAvg}回—減量中に筋肉を守る最適ペース。重量を維持し続けて。` });
           }
         } else if (goalMode === 'maintain') {
           if (freq < 2) {
-            advices.push({
-              icon: '📈',
-              title: 'トレーニング頻度を上げよう',
-              content: `過去30日間の平均は週${weeklyAvg}回です。体型維持には週3-4回のトレーニングが理想的です。現在の筋肉量を維持するために、少しずつ頻度を上げていきましょう。`,
-            });
+            advices.push({ icon: '📈', title: 'トレーニング頻度を上げよう',
+              content: `週${weeklyAvg}回—体型維持には週3-4回が理想。頂点重量を落とさないことが大切。` });
           } else {
-            advices.push({
-              icon: '💪',
-              title: '良いトレーニングペース',
-              content: `過去30日間の平均は週${weeklyAvg}回で、体型維持に適したペースです。この頻度を維持しながら、フォームの改善や新しい種目にチャレンジしてみましょう。`,
-            });
+            advices.push({ icon: '💪', title: '良いトレーニングペース',
+              content: `週${weeklyAvg}回—維持に適したペース。フォーム改善や新種目にチャレンジして刺激を入れよう。` });
           }
         } else {
-          // バルクアップモード
           if (freq < 2) {
-            advices.push({
-              icon: '📈',
-              title: 'トレーニング頻度を上げよう',
-              content: `過去30日間の平均は週${weeklyAvg}回です。筋肥大（バルクアップ）には週3-5回のトレーニングが理想的です。まずは週3回を目標にしてみましょう。1回のトレーニング時間は45-60分で十分です。`,
-            });
+            advices.push({ icon: '📈', title: 'トレーニング頻度を上げよう',
+              content: `週${weeklyAvg}回—バルクには週3-5回が理想。1回45-60分、まず週３回から始めよう。` });
           } else if (freq >= 5) {
-            advices.push({
-              icon: '⚠️',
-              title: 'オーバートレーニングに注意',
-              content: `過去30日間の平均は週${weeklyAvg}回とかなりハイペースです。筋肉は休息中に成長するため、週に最低1-2日の完全休養日を確保しましょう。質の高いトレーニングと十分な休養のバランスが大切です。`,
-            });
+            advices.push({ icon: '⚠️', title: 'オーバートレーニングに注意',
+              content: `週${weeklyAvg}回—筋肉は休息中に成長する。週1-2日の完全休養を必ず取ること。` });
           } else {
-            advices.push({
-              icon: '💪',
-              title: '良いトレーニングペース',
-              content: `過去30日間の平均は週${weeklyAvg}回で、筋肥大に適したペースです。この頻度を維持しながら、徐々に重量やセット数を増やす「漸進性過負荷」を意識すると、さらに効果的です。`,
-            });
+            advices.push({ icon: '💪', title: '良いトレーニングペース',
+              content: `週${weeklyAvg}回—筋肥大に最適ペース。漸進性過負荷（重量・セット数を少しずつ増やす）を意識して。` });
           }
         }
       }
@@ -339,64 +307,21 @@ function AIAdvice() {
     if (runningDays > 0) {
       const avgDist = totalDistance / runningDays;
       if (goalMode === 'cut') {
-        advices.push({
-          icon: '🏃',
+        advices.push({ icon: '🏃',
           title: avgDist >= 3 ? 'ランニングで脂肪燃焼中' : 'ランニング距離を伸ばそう',
           content: avgDist >= 3
-            ? `平均${avgDist.toFixed(1)}km/回のペースで走れています。減量中の有酸素運動は脂肪燃焼に非常に効果的です。ただし、1回45分以上の有酸素は筋肉の分解リスクが高まるので注意。HIIT（高強度インターバル）も取り入れると効率的です。`
-            : `現在の平均距離は${avgDist.toFixed(1)}km/回です。減量中は有酸素運動が脂肪燃焼の強い味方です。3-5kmを目標に、週3-4回のペースで走りましょう。筋トレ後に走ると脂肪燃焼効果がさらに高まります。`,
+            ? `平均${avgDist.toFixed(1)}km/回。減量中の有氧素は強力。ただし1回45分以上は筋肉分解リスク—HIITも有効。`
+            : `平均${avgDist.toFixed(1)}km/回。3-5km・週3-4回を目標に。筋トレ後に走ると脂肪燃焼効果が高まる。`,
         });
       } else if (goalMode === 'maintain') {
-        advices.push({
-          icon: '🏃',
-          title: 'ランニングで体力維持',
-          content: `平均${avgDist.toFixed(1)}km/回のペースで走れています（合計${totalDistance.toFixed(1)}km）。体型維持には適度な有酸素運動が効果的です。週2-3回、30分程度のランニングで心肺機能を維持しましょう。`,
-        });
+        advices.push({ icon: '🏃', title: 'ランニングで体力維持',
+          content: `平均${avgDist.toFixed(1)}km/回（合計${totalDistance.toFixed(1)}km）。週2-3回・30分程度で心肺機能を維持。` });
       } else {
-        // バルクアップ
-        if (avgDist < 3) {
-          advices.push({
-            icon: '🏃',
-            title: 'ランニング距離を伸ばそう',
-            content: `現在の平均距離は${avgDist.toFixed(1)}km/回です。バルクアップ中の有酸素運動は、脂肪の蓄積を抑えつつ心肺機能を維持するのに重要です。まずは3-5kmを目標に、週2-3回のペースで走りましょう。ただし、やりすぎると筋肉の分解が進むので、1回30分以内が目安です。`,
-          });
-        } else {
-          advices.push({
-            icon: '🏃',
-            title: 'ランニングは順調',
-            content: `平均${avgDist.toFixed(1)}km/回のペースで走れています（合計${totalDistance.toFixed(1)}km）。バルクアップ中は有酸素運動のやりすぎに注意。筋トレ後のランニングは脂肪燃焼効果が高いですが、30分以内に抑えると筋肉の分解を最小限にできます。`,
-          });
-        }
-      }
-    }
-
-    // Sleep advice (goal-mode aware)
-    const sleepArr = Object.values(sleepRecords).filter((s) => s.sleepHours);
-    if (sleepArr.length > 0) {
-      const avgSleep = sleepArr.reduce((sum, s) => sum + (s.sleepHours || 0), 0) / sleepArr.length;
-      const sleepGoalText = goalMode === 'cut'
-        ? '減量中は睡眠不足がストレスホルモン（コルチゾール）を増加させ、食欲増進と筋肉分解を促進します。'
-        : goalMode === 'maintain'
-        ? '体型維持には安定した睡眠リズムが重要です。'
-        : '睡眠中に分泌される成長ホルモンは筋肉の修復・成長に不可欠です。';
-
-      if (avgSleep < 6) {
-        advices.push({
-          icon: '😴',
-          title: '睡眠を改善しよう（重要）',
-          content: `平均睡眠時間は${avgSleep.toFixed(1)}時間で、かなり不足しています。${sleepGoalText}7-8時間の睡眠を確保するために、就寝1時間前のスマホ使用を控え、寝室を暗くすることから始めましょう。`,
-        });
-      } else if (avgSleep < 7) {
-        advices.push({
-          icon: '🌙',
-          title: '睡眠をもう少し確保しよう',
-          content: `平均${avgSleep.toFixed(1)}時間の睡眠は悪くないですが、最適値は7-9時間です。${sleepGoalText}あと30分-1時間早く寝ることで、回復効果が向上します。`,
-        });
-      } else {
-        advices.push({
-          icon: '✨',
-          title: '睡眠は理想的',
-          content: `平均${avgSleep.toFixed(1)}時間の睡眠は理想的な範囲です。${sleepGoalText}この習慣を維持しましょう。`,
+        advices.push({ icon: '🏃',
+          title: avgDist < 3 ? 'ランニング距離を伸ばそう' : 'ランニングは順調',
+          content: avgDist < 3
+            ? `平均${avgDist.toFixed(1)}km/回。3-5km・週2-3回を目標に。1回30分以内で筋肉分解を防ぐ。`
+            : `平均${avgDist.toFixed(1)}km/回（合計${totalDistance.toFixed(1)}km）。筋トレ後に走ると脂肪燃焼効果高。ただし、1回30分以内で。`,
         });
       }
     }
@@ -414,48 +339,28 @@ function AIAdvice() {
       
       if (goalMode === 'bulk') {
         if (change > 0 && remaining > 0) {
-          advices.push({
-            icon: '📊',
-            title: '体重は増加傾向 — 順調です',
-            content: `開始${first}kg → 現在${latest}kg（+${change.toFixed(1)}kg）。目標${target}kgまであと${remaining.toFixed(1)}kgです。リーンバルクの理想的な増量ペースは月0.5-1kgです。急激な増量は脂肪の蓄積につながるので、タンパク質を体重×1.6-2.2g/日摂取しながら、ゆっくり増やしていきましょう。`,
-          });
+          advices.push({ icon: '📊', title: '体重増加傾向 — 順調',
+            content: `${first}kg→${latest}kg（+${change.toFixed(1)}kg）。目標${target}kgまであと${remaining.toFixed(1)}kg。理想ペースは月10.5-1kg。` });
         } else if (change <= 0) {
-          advices.push({
-            icon: '📊',
-            title: '体重が減少傾向 — カロリーを見直そう',
-            content: `開始${first}kg → 現在${latest}kg（${change.toFixed(1)}kg）。バルクアップが目標なら、カロリー摂取量を見直しましょう。基礎代謝+300-500kcalの摂取が目安です。特にトレーニング後30分以内のタンパク質摂取（20-30g）を意識すると効果的です。`,
-          });
+          advices.push({ icon: '📊', title: '体重減少傾向 — カロリーを増やそう',
+            content: `${first}kg→${latest}kg（${change.toFixed(1)}kg）。基礎代謝+300-500kcal、特にトレ後30分以内にタンパク質20-30g。` });
         }
       } else if (goalMode === 'cut') {
         if (change < 0) {
-          advices.push({
-            icon: '📊',
-            title: '体重は減少傾向 — 順調です',
-            content: `開始${first}kg → 現在${latest}kg（${change.toFixed(1)}kg）。${target < latest ? `目標${target}kgまであと${(latest - target).toFixed(1)}kgです。` : ''}理想的な減量ペースは週0.5-1%の体重減少です。急激な減量は筋肉の分解を招くので、タンパク質を体重×2.0-2.4g/日摂取し、筋トレの重量を維持することを意識しましょう。`,
-          });
-        } else if (change >= 0) {
-          advices.push({
-            icon: '📊',
-            title: '体重が増加傾向 — カロリーを見直そう',
-            content: `開始${first}kg → 現在${latest}kg（+${change.toFixed(1)}kg）。減量が目標なら、摂取カロリーを見直しましょう。基礎代謝-300~500kcalの摂取が目安です。食事の記録をつけて、隠れたカロリーを見つけましょう。`,
-          });
+          advices.push({ icon: '📊', title: '体重減少傾向 — 順調',
+            content: `${first}kg→${latest}kg（${change.toFixed(1)}kg）。${target < latest ? `目標${target}kgまであと${(latest - target).toFixed(1)}kg。` : ''}筋トレの重量を落とさないことが重要。` });
+        } else {
+          advices.push({ icon: '📊', title: '体重増加傾向 — カロリーを見直そう',
+            content: `${first}kg→${latest}kg（+${change.toFixed(1)}kg）。基礎代謝-300-500kcalを目安に。食事記録で隠れカロリーを見つけよう。` });
         }
       } else {
-        // 維持モード
         const absChange = Math.abs(change);
-        if (absChange <= 1) {
-          advices.push({
-            icon: '📊',
-            title: '体重は安定しています',
-            content: `開始${first}kg → 現在${latest}kg（${change >= 0 ? '+' : ''}${change.toFixed(1)}kg）。体重の変動が1kg以内で安定しています。この調子でバランスの良い食事とトレーニングを続けましょう。`,
-          });
-        } else {
-          advices.push({
-            icon: '📊',
-            title: `体重が${change > 0 ? '増加' : '減少'}傾向`,
-            content: `開始${first}kg → 現在${latest}kg（${change >= 0 ? '+' : ''}${change.toFixed(1)}kg）。維持モードでは体重の変動を±1kg以内に抑えるのが理想です。${change > 0 ? '食事量を少し減らすか、有酸素運動を増やしましょう。' : '食事量を少し増やすか、消費カロリーを見直しましょう。'}`,
-          });
-        }
+        advices.push({ icon: '📊',
+          title: absChange <= 1 ? '体重安定' : `体重${change > 0 ? '増加' : '減少'}傾向`,
+          content: absChange <= 1
+            ? `${first}kg→${latest}kg（${change >= 0 ? '+' : ''}${change.toFixed(1)}kg）。変動1kg以内で安定。この調子を維持。`
+            : `${first}kg→${latest}kg（${change >= 0 ? '+' : ''}${change.toFixed(1)}kg）。維持目標は±1kg以内。${change > 0 ? '有酸素を少し増やすか、食事量を減らす。' : '摂取カロリーを少し増やす。'}`,
+        });
       }
     }
 
@@ -1035,8 +940,6 @@ export default function Review() {
       </div>
 
       <AIAdvice />
-      <StreakAndAchievements />
-      <WeeklyChallengeCard />
       <MuscleHeatmapView />
       <MonthlyDistance />
       <WeightTrendChart />
@@ -1047,148 +950,4 @@ export default function Review() {
   );
 }
 
-// ===== Weekly Challenge Component =====
-function WeeklyChallengeCard() {
-  const challenge = getCurrentWeeklyChallenge();
 
-  const categoryColors: Record<string, string> = {
-    sleep: 'bg-indigo-50 border-indigo-200 text-indigo-700',
-    training: 'bg-orange-50 border-orange-200 text-orange-700',
-    running: 'bg-green-50 border-green-200 text-green-700',
-    body: 'bg-purple-50 border-purple-200 text-purple-700',
-    mindset: 'bg-yellow-50 border-yellow-200 text-yellow-700',
-  };
-
-  const colorClass = categoryColors[challenge.category] || 'bg-muted border-border text-foreground';
-
-  return (
-    <div className="card-neu p-5">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-foreground">今週のチャレンジ</h3>
-        <span className="text-xs text-foreground/50">毎週月曜更新</span>
-      </div>
-      <div className={`rounded-xl p-4 border ${colorClass}`}>
-        <div className="flex items-center gap-3 mb-2">
-          <span className="text-3xl">{challenge.emoji}</span>
-          <div>
-            <h4 className="text-sm font-bold">{challenge.title}</h4>
-            <p className="text-xs opacity-80 mt-0.5">{challenge.description}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 mt-3">
-          <span className="text-xs font-medium opacity-70">目標:</span>
-          <span className="text-sm font-bold">{challenge.target} {challenge.unit}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ===== Streak & Achievements Component =====
-function StreakAndAchievements() {
-  const [photoCount, setPhotoCount] = useState(0);
-
-  const streakData = useMemo(() => calculateStreak(), []);
-  const achievements = useMemo(() => getAchievements(), []);
-  const unlockedAchievements = achievements.filter((a) => a.unlockedAt !== null);
-
-  useEffect(() => {
-    getPhotoCount().then((count) => {
-      setPhotoCount(count);
-
-      // Check for new achievements
-      const trainingRecords = getAllTrainingRecords();
-      const runningRecords = getAllRunningRecords();
-      const sleepRecords = getAllSleepRecords();
-      const bodyLogs = getAllBodyLogs();
-
-      const totalRunningKm = Object.values(runningRecords).reduce((sum, r) => sum + (r.distance || 0), 0);
-      const totalWeightDays = Object.values(bodyLogs).filter((b) => b.weight).length;
-      const totalSleepGoodDays = Object.values(sleepRecords).filter((s) => (s.sleepHours || 0) >= 7).length;
-      const muscleGroupsUsed = new Set<string>();
-      Object.values(trainingRecords).forEach((r) => r.muscleGroups.forEach((m) => muscleGroupsUsed.add(m)));
-      const hasAllMuscles = ['胸', '背中', '肩', '腕', '脚', '腹筋'].every((m) => muscleGroupsUsed.has(m));
-
-      const newly = checkAndUnlockAchievements({
-        currentStreak: streakData.currentStreak,
-        totalSleepGoodDays,
-        totalRunningKm,
-        totalWeightDays,
-        hasAllMuscles,
-        photoCount: count,
-        totalRecordDays: streakData.totalDays,
-      });
-      if (newly.length > 0) {
-        newly.forEach((a) => toast.success(`実績解除: ${a.title} ${a.emoji}`));
-      }
-    }).catch(() => {});
-  }, [streakData]);
-
-  const getStreakEmoji = (streak: number) => {
-    if (streak >= 100) return '🏆';
-    if (streak >= 30) return '💎';
-    if (streak >= 14) return '🔥';
-    if (streak >= 7) return '⭐';
-    if (streak >= 3) return '✨';
-    return '🌱';
-  };
-
-  return (
-    <div className="card-neu p-5 space-y-4">
-      <h3 className="text-sm font-semibold text-foreground">ストリーク & 実績</h3>
-
-      {/* Streak display */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-xl p-3 text-center border border-orange-100">
-          <div className="text-2xl mb-1">{getStreakEmoji(streakData.currentStreak)}</div>
-          <p className="text-xl font-bold font-display text-sunrise-orange">{streakData.currentStreak}</p>
-          <p className="text-[10px] text-foreground/50">連続記録</p>
-        </div>
-        <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-3 text-center border border-purple-100">
-          <div className="text-2xl mb-1">🏅</div>
-          <p className="text-xl font-bold font-display text-purple-600">{streakData.longestStreak}</p>
-          <p className="text-[10px] text-foreground/50">最長記録</p>
-        </div>
-        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-3 text-center border border-green-100">
-          <div className="text-2xl mb-1">📅</div>
-          <p className="text-xl font-bold font-display text-green-600">{streakData.totalDays}</p>
-          <p className="text-[10px] text-foreground/50">総記録日</p>
-        </div>
-      </div>
-
-      {/* Streak motivation message */}
-      <div className="text-center text-xs text-foreground/60 bg-muted/40 rounded-lg py-2">
-        {streakData.currentStreak === 0
-          ? '今日から記録を始めよう！最初の一歩が大切です 🌱'
-          : streakData.currentStreak < 7
-          ? `${streakData.currentStreak}日連続！7日まであと${7 - streakData.currentStreak}日 ⭐`
-          : streakData.currentStreak < 30
-          ? `${streakData.currentStreak}日連続！この調子で30日を目指そう 🔥`
-          : `${streakData.currentStreak}日連続！素晴らしい継続力です 💎`}
-      </div>
-
-      {/* Achievements */}
-      <div>
-        <h4 className="text-xs font-bold text-foreground/50 uppercase tracking-wider mb-2">
-          実績 ({unlockedAchievements.length}/{achievements.length})
-        </h4>
-        <div className="grid grid-cols-4 gap-2">
-          {achievements.map((a) => (
-            <div
-              key={a.id}
-              className={`rounded-xl p-2 text-center transition-all ${
-                a.unlockedAt
-                  ? 'bg-gradient-to-br from-yellow-50 to-orange-50 border border-yellow-200'
-                  : 'bg-muted/30 border border-border/30 opacity-40'
-              }`}
-              title={a.description}
-            >
-              <div className="text-xl mb-1">{a.emoji}</div>
-              <p className="text-[9px] font-medium text-foreground/70 leading-tight">{a.title}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}

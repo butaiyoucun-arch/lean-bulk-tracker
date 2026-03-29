@@ -1,11 +1,12 @@
 import { useLocation } from 'wouter';
-import { Home, CalendarDays, BarChart3, Settings } from 'lucide-react';
+import { Home, CalendarDays, BarChart3, Trophy, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const navItems = [
   { path: '/', label: 'ホーム', icon: Home },
   { path: '/schedule', label: 'スケジュール', icon: CalendarDays },
   { path: '/review', label: '振り返り', icon: BarChart3 },
+  { path: '/challenge', label: 'チャレンジ', icon: Trophy },
   { path: '/settings', label: '設定', icon: Settings },
 ];
 

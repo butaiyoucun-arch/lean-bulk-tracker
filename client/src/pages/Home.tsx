@@ -26,7 +26,7 @@ import {
 } from '@/lib/store';
 import { savePhoto, getPhoto, migratePhotosFromLocalStorage } from '@/lib/photoDb';
 import type { SleepRecord, BodyLog } from '@/lib/types';
-import { DAY_NAMES } from '@/lib/types';
+import { DAY_NAMES, LONG_TERM_GOAL } from '@/lib/types';
 
 // ===== Celebration Burst Animation =====
 function CelebrationBurst() {
@@ -630,6 +630,17 @@ export default function Home() {
                 >
                   今日も最高の一日にしよう
                 </motion.p>
+                {/* Long-term goal — subtle but visible */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.6 }}
+                  className="mt-3 px-3 py-1.5 bg-black/10 rounded-lg relative z-10 inline-block"
+                >
+                  {LONG_TERM_GOAL.split('\n').map((line, i) => (
+                    <p key={i} className={`text-[11px] text-foreground/70 leading-snug ${i === 0 ? 'font-semibold' : 'font-medium'}`}>{line}</p>
+                  ))}
+                </motion.div>
               </motion.div>
 
               {/* Ohtani Sheet - Category + Items only */}

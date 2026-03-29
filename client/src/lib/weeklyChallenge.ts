@@ -126,16 +126,33 @@ export interface Achievement {
 const ACHIEVEMENT_STORAGE_KEY = 'lbt_achievements';
 
 const ACHIEVEMENT_DEFINITIONS: Omit<Achievement, 'unlockedAt'>[] = [
+  // === COMMON ===
   { id: 'first_record', title: '最初の一歩', description: '初めて記録をつけた', emoji: '🌱' },
+  { id: 'streak_3', title: '三日坊主を超えた', description: '3日連続で記録をつけた', emoji: '✨' },
+  { id: 'first_run', title: '初ラン', description: '初めてランニングを記録した', emoji: '👟' },
+  { id: 'first_training', title: '初トレ', description: '初めてトレーニングを記録した', emoji: '🏋️' },
+  { id: 'first_weight', title: '体重記録スタート', description: '初めて体重を記録した', emoji: '⚖️' },
+  { id: 'first_photo', title: '初スナップ', description: '初めてボディフォトを撮影した', emoji: '📸' },
+  // === RARE ===
   { id: 'streak_7', title: '一週間継続', description: '7日連続で記録をつけた', emoji: '🔥' },
+  { id: 'streak_14', title: '二週間の鉄人', description: '14日連続で記録をつけた', emoji: '💪' },
+  { id: 'runner_10km', title: 'ランナー', description: '累記10km走破', emoji: '🏃' },
+  { id: 'runner_50km', title: 'ハーフマラソンランナー', description: '累記50km走破', emoji: '🏅' },
+  { id: 'sleep_master', title: '睡眠マスター', description: '7時間以上の睡眠を１０回記録', emoji: '😴' },
+  { id: 'weight_logger', title: '体重管理者', description: '体重を３０日分記録', emoji: '📊' },
+  { id: 'muscle_all', title: '全身鍛錬', description: '全ての筋肉部位を記録', emoji: '💪' },
+  { id: 'photo_10', title: 'フォトジェニック', description: 'ボディフォトを１０枚記録', emoji: '📸' },
+  // === EPIC ===
   { id: 'streak_30', title: '一ヶ月継続', description: '30日連続で記録をつけた', emoji: '💎' },
   { id: 'streak_100', title: '100日の軌跡', description: '100日連続で記録をつけた', emoji: '🏆' },
-  { id: 'sleep_master', title: '睡眠マスター', description: '7時間以上の睡眠を10回記録', emoji: '😴' },
-  { id: 'runner_10km', title: 'ランナー', description: '累計10km走破', emoji: '🏃' },
-  { id: 'runner_100km', title: 'マラソンマン', description: '累計100km走破', emoji: '🥇' },
-  { id: 'weight_logger', title: '体重管理者', description: '体重を30日分記録', emoji: '⚖️' },
-  { id: 'muscle_all', title: '全身鍛錬', description: '全ての筋肉部位を記録', emoji: '💪' },
-  { id: 'photo_10', title: 'フォトジェニック', description: 'ボディフォトを10枚記録', emoji: '📸' },
+  { id: 'runner_100km', title: 'マラソンマン', description: '累記100km走破', emoji: '🥇' },
+  { id: 'sleep_master_30', title: '睡眠の超人', description: '7時間以上の睡眠を３０回記録', emoji: '🌙' },
+  { id: 'photo_50', title: 'ボディビルダー', description: 'ボディフォトを５０枚記録', emoji: '🎥' },
+  // === LEGENDARY ===
+  { id: 'streak_365', title: '伝説の継続者', description: '365日連続で記録をつけた', emoji: '👑' },
+  { id: 'runner_500km', title: 'ウルトラランナー', description: '累記500km走破', emoji: '🌍' },
+  { id: 'weight_logger_365', title: '体重管理の山', description: '体重を３６５日分記録', emoji: '💯' },
+  { id: 'all_perfect', title: '完璧な一日', description: '睡眠・体重・トレーニング・ランニングを同日に記録', emoji: '🌟' },
 ];
 
 export function getAchievements(): Achievement[] {
@@ -172,6 +189,11 @@ export function checkAndUnlockAchievements(stats: {
   hasAllMuscles: boolean;
   photoCount: number;
   totalRecordDays: number;
+  hasRun?: boolean;
+  hasTraining?: boolean;
+  hasWeight?: boolean;
+  hasPhoto?: boolean;
+  hasPerfectDay?: boolean;
 }): Achievement[] {
   const newlyUnlocked: Achievement[] = [];
   const achievements = getAchievements();
@@ -186,16 +208,33 @@ export function checkAndUnlockAchievements(stats: {
     }
   };
 
+  // COMMON
   check('first_record', stats.totalRecordDays >= 1);
+  check('streak_3', stats.currentStreak >= 3);
+  check('first_run', stats.hasRun === true || stats.totalRunningKm > 0);
+  check('first_training', stats.hasTraining === true || stats.totalRecordDays > 0);
+  check('first_weight', stats.hasWeight === true || stats.totalWeightDays > 0);
+  check('first_photo', stats.hasPhoto === true || stats.photoCount > 0);
+  // RARE
   check('streak_7', stats.currentStreak >= 7);
-  check('streak_30', stats.currentStreak >= 30);
-  check('streak_100', stats.currentStreak >= 100);
-  check('sleep_master', stats.totalSleepGoodDays >= 10);
+  check('streak_14', stats.currentStreak >= 14);
   check('runner_10km', stats.totalRunningKm >= 10);
-  check('runner_100km', stats.totalRunningKm >= 100);
+  check('runner_50km', stats.totalRunningKm >= 50);
+  check('sleep_master', stats.totalSleepGoodDays >= 10);
   check('weight_logger', stats.totalWeightDays >= 30);
   check('muscle_all', stats.hasAllMuscles);
   check('photo_10', stats.photoCount >= 10);
+  // EPIC
+  check('streak_30', stats.currentStreak >= 30);
+  check('streak_100', stats.currentStreak >= 100);
+  check('runner_100km', stats.totalRunningKm >= 100);
+  check('sleep_master_30', stats.totalSleepGoodDays >= 30);
+  check('photo_50', stats.photoCount >= 50);
+  // LEGENDARY
+  check('streak_365', stats.currentStreak >= 365);
+  check('runner_500km', stats.totalRunningKm >= 500);
+  check('weight_logger_365', stats.totalWeightDays >= 365);
+  check('all_perfect', stats.hasPerfectDay === true);
 
   return newlyUnlocked;
 }
