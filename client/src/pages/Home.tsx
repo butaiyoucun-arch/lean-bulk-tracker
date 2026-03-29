@@ -1,12 +1,13 @@
 /**
  * Home Page - Lean Bulk Tracker
  * Design: Warm Sunrise - Soft Neumorphism with warm tones
- * Features: Sleep Record (editable times), Morning Body Log (camera + album),
- *           Today's Mission, Ohayou celebration animation
+ * Features: Sleep Record (editable times, cross-midnight support),
+ *           Morning Body Log (camera + album), Today's Mission,
+ *           Ohayou celebration animation
  */
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Image as ImageIcon, Edit3, Clock } from 'lucide-react';
+import { Camera, Image as ImageIcon, Edit3, Clock, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -131,6 +132,19 @@ function CelebrationBurst() {
   );
 }
 
+// ===== 日付跨ぎ判定ヘルパー =====
+// 深夜0〜5時に「おやすみ」を押した場合は「前日」のレコードとして扱う
+function getBedTimeDate(now: Date): string {
+  const hour = now.getHours();
+  if (hour < 5) {
+    // 前日の日付を返す
+    const prev = new Date(now);
+    prev.setDate(prev.getDate() - 1);
+    return formatDate(prev);
+  }
+  return formatDate(now);
+}
+
 export default function Home() {
   const today = getToday();
   const todayDate = new Date();
@@ -138,6 +152,8 @@ export default function Home() {
   const monthDay = `${todayDate.getMonth() + 1}/${todayDate.getDate()}`;
 
   const [sleep, setSleep] = useState<SleepRecord>(() => getSleepRecord(today));
+  // 「おやすみ」が前日扱いになる場合に前日のレコードも表示
+  const [prevDaySleep, setPrevDaySleep] = useState<SleepRecord | null>(null);
   const [body, setBody] = useState<BodyLog>(() => getBodyLog(today));
   // IndexedDBから取得した今日の写真URL（表示用）
   const [todayPhotoUrl, setTodayPhotoUrl] = useState<string | null>(null);
@@ -149,6 +165,10 @@ export default function Home() {
   const [showTimeEdit, setShowTimeEdit] = useState(false);
   const [editWakeTime, setEditWakeTime] = useState('');
   const [editBedTime, setEditBedTime] = useState('');
+  // おやすみ時間編集：どの日付に保存するかを選択できる
+  const [editBedDate, setEditBedDate] = useState(today);
+  // 深夜帯（0〜5時）かどうか
+  const isLateNight = todayDate.getHours() < 5;
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const albumInputRef = useRef<HTMLInputElement>(null);
   const schedule = getScheduleDay(today);
@@ -168,6 +188,14 @@ export default function Home() {
   useEffect(() => {
     setSleep(getSleepRecord(today));
     setBody(getBodyLog(today));
+
+    // 深夜帯の場合は前日のレコードも読み込む（おやすみ時間の表示用）
+    if (isLateNight) {
+      const prev = new Date(todayDate);
+      prev.setDate(prev.getDate() - 1);
+      const prevRecord = getSleepRecord(formatDate(prev));
+      setPrevDaySleep(prevRecord);
+    }
   }, [today]);
 
   const handleWakeUp = () => {
@@ -198,29 +226,61 @@ export default function Home() {
   const handleBedTime = () => {
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const updated = { ...sleep, bedTime: timeStr };
-    setSleep(updated);
+    
+    // 深夜0〜5時の場合は前日のレコードに保存する
+    const targetDate = getBedTimeDate(now);
+    const targetRecord = getSleepRecord(targetDate);
+    const updated = { ...targetRecord, bedTime: timeStr };
     saveSleepRecord(updated);
+
+    if (targetDate === today) {
+      setSleep(updated);
+    } else {
+      // 前日扱いの場合は prevDaySleep を更新
+      setPrevDaySleep(updated);
+      toast.success(`おやすみなさい 🌙 （${targetDate.slice(5).replace('-', '/')}の記録として保存）`);
+      return;
+    }
     toast.success('おやすみなさい 🌙 良い夢を！');
   };
 
   const handleTimeSave = () => {
-    const updated = { ...sleep };
-    if (editWakeTime) updated.wakeUpTime = editWakeTime;
-    if (editBedTime) updated.bedTime = editBedTime;
+    // おはよう時間は今日のレコードに保存
+    const updatedToday = { ...sleep };
+    if (editWakeTime) updatedToday.wakeUpTime = editWakeTime;
 
-    // Recalculate sleep hours
-    if (updated.bedTime && updated.wakeUpTime) {
-      const yesterday = new Date(todayDate);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdaySleep = getSleepRecord(formatDate(yesterday));
-      if (yesterdaySleep.bedTime) {
-        updated.sleepHours = calculateSleepHours(yesterdaySleep.bedTime, updated.wakeUpTime);
+    // おやすみ時間は選択した日付のレコードに保存
+    if (editBedTime) {
+      const targetRecord = getSleepRecord(editBedDate);
+      const updatedBed = { ...targetRecord, bedTime: editBedTime };
+      saveSleepRecord(updatedBed);
+
+      // 今日のレコードの睡眠時間を再計算
+      if (editBedDate !== today && updatedToday.wakeUpTime) {
+        updatedToday.sleepHours = calculateSleepHours(editBedTime, updatedToday.wakeUpTime);
+      } else if (editBedDate === today && updatedToday.wakeUpTime) {
+        updatedToday.bedTime = editBedTime;
+        updatedToday.sleepHours = calculateSleepHours(editBedTime, updatedToday.wakeUpTime);
+      }
+
+      if (editBedDate !== today) {
+        setPrevDaySleep(updatedBed);
       }
     }
 
-    setSleep(updated);
-    saveSleepRecord(updated);
+    // 今日のおはよう時間と前日のおやすみ時間から睡眠時間を計算
+    if (editWakeTime && editBedDate !== today) {
+      const prevRecord = getSleepRecord(editBedDate);
+      const bedT = editBedTime || prevRecord.bedTime;
+      if (bedT) {
+        updatedToday.sleepHours = calculateSleepHours(bedT, editWakeTime);
+      }
+    } else if (editWakeTime && editBedTime && editBedDate === today) {
+      updatedToday.sleepHours = calculateSleepHours(editBedTime, editWakeTime);
+    }
+
+    setSleep(updatedToday);
+    saveSleepRecord(updatedToday);
     setShowTimeEdit(false);
     toast.success('時間を更新しました');
   };
@@ -282,6 +342,14 @@ export default function Home() {
   const mission = getMissionDisplay();
   const ohtaniSheet = getOhtaniSheet();
 
+  // 表示するおやすみ時間：今日のレコードまたは前日のレコード（深夜帯）
+  const displayBedTime = sleep.bedTime || (isLateNight && prevDaySleep?.bedTime) || null;
+  const displayBedDateLabel = sleep.bedTime
+    ? null
+    : isLateNight && prevDaySleep?.bedTime
+    ? '(昨日)'
+    : null;
+
   return (
     <div className="px-4 pt-12 pb-4 space-y-4 relative">
       {/* Celebration overlay */}
@@ -306,19 +374,36 @@ export default function Home() {
       >
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-bold text-foreground">睡眠記録</h3>
-          {(sleep.wakeUpTime || sleep.bedTime) && (
-            <button
-              onClick={() => {
-                setEditWakeTime(sleep.wakeUpTime || '');
-                setEditBedTime(sleep.bedTime || '');
-                setShowTimeEdit(true);
-              }}
-              className="text-xs text-sunrise-orange font-medium flex items-center gap-1 tap-active"
-            >
-              <Clock size={12} />
-              時間を修正
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {/* 深夜帯の場合に「前日のおやすみ」バッジを表示 */}
+            {isLateNight && (
+              <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                <Moon size={9} />
+                深夜モード
+              </span>
+            )}
+            {(sleep.wakeUpTime || sleep.bedTime || displayBedTime) && (
+              <button
+                onClick={() => {
+                  setEditWakeTime(sleep.wakeUpTime || '');
+                  setEditBedTime(sleep.bedTime || prevDaySleep?.bedTime || '');
+                  // 前日のおやすみが存在する場合は前日の日付をデフォルトに
+                  if (!sleep.bedTime && isLateNight && prevDaySleep?.bedTime) {
+                    const prev = new Date(todayDate);
+                    prev.setDate(prev.getDate() - 1);
+                    setEditBedDate(formatDate(prev));
+                  } else {
+                    setEditBedDate(today);
+                  }
+                  setShowTimeEdit(true);
+                }}
+                className="text-xs text-sunrise-orange font-medium flex items-center gap-1 tap-active"
+              >
+                <Clock size={12} />
+                時間を修正
+              </button>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           {/* Ohayou Button */}
@@ -354,18 +439,43 @@ export default function Home() {
             whileHover={{ scale: 1.02 }}
             onClick={handleBedTime}
             className={`rounded-xl p-4 flex flex-col items-center gap-2 transition-all ${
-              sleep.bedTime
+              displayBedTime
                 ? 'bg-sunrise-lavender/60 shadow-inner'
                 : 'bg-sunrise-lavender/30 hover:bg-sunrise-lavender/50 shadow-md'
             }`}
           >
             <span className="text-3xl">🌙</span>
             <span className="text-sm font-bold text-foreground">おやすみ</span>
-            {sleep.bedTime && (
-              <span className="text-xs font-medium text-foreground/70">{sleep.bedTime}</span>
+            {displayBedTime && (
+              <div className="text-center">
+                <span className="text-xs font-medium text-foreground/70">{displayBedTime}</span>
+                {displayBedDateLabel && (
+                  <span className="text-[10px] text-indigo-500 ml-1">{displayBedDateLabel}</span>
+                )}
+              </div>
+            )}
+            {/* 深夜帯で未記録の場合はヒントを表示 */}
+            {isLateNight && !displayBedTime && (
+              <span className="text-[10px] text-indigo-400 text-center leading-tight">前日の記録に<br/>保存されます</span>
             )}
           </motion.button>
         </div>
+
+        {/* 睡眠時間の表示 */}
+        {sleep.sleepHours && (
+          <div className="mt-3 text-center bg-indigo-50 rounded-xl py-2">
+            <span className="text-sm font-bold text-indigo-600">
+              睡眠時間: {sleep.sleepHours.toFixed(1)}h
+            </span>
+            {sleep.sleepHours >= 7 ? (
+              <span className="text-xs text-indigo-400 ml-2">理想的！</span>
+            ) : sleep.sleepHours >= 6 ? (
+              <span className="text-xs text-yellow-500 ml-2">もう少し</span>
+            ) : (
+              <span className="text-xs text-red-400 ml-2">睡眠不足</span>
+            )}
+          </div>
+        )}
       </motion.div>
 
       {/* Morning Body Log Card */}
@@ -599,7 +709,7 @@ export default function Home() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <label className="text-sm font-medium text-foreground/70 mb-1 block">おはよう時間</label>
+              <label className="text-sm font-medium text-foreground/70 mb-1 block">おはよう時間（今日）</label>
               <Input
                 type="time"
                 value={editWakeTime}
@@ -609,12 +719,48 @@ export default function Home() {
             </div>
             <div>
               <label className="text-sm font-medium text-foreground/70 mb-1 block">おやすみ時間</label>
+              {/* おやすみ日付の選択（今日 or 昨日） */}
+              <div className="flex gap-2 mb-2">
+                <button
+                  onClick={() => setEditBedDate(today)}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    editBedDate === today
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-muted text-foreground/60'
+                  }`}
+                >
+                  今日 ({today.slice(5).replace('-', '/')})
+                </button>
+                <button
+                  onClick={() => {
+                    const prev = new Date(todayDate);
+                    prev.setDate(prev.getDate() - 1);
+                    setEditBedDate(formatDate(prev));
+                  }}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    editBedDate !== today
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-muted text-foreground/60'
+                  }`}
+                >
+                  昨日 ({(() => {
+                    const prev = new Date(todayDate);
+                    prev.setDate(prev.getDate() - 1);
+                    return formatDate(prev).slice(5).replace('-', '/');
+                  })()})
+                </button>
+              </div>
               <Input
                 type="time"
                 value={editBedTime}
                 onChange={(e) => setEditBedTime(e.target.value)}
                 className="h-12 text-lg text-center text-foreground"
               />
+              {editBedDate !== today && (
+                <p className="text-xs text-indigo-500 mt-1 text-center">
+                  昨日（{editBedDate.slice(5).replace('-', '/')}）のおやすみ記録として保存されます
+                </p>
+              )}
             </div>
             <Button
               onClick={handleTimeSave}

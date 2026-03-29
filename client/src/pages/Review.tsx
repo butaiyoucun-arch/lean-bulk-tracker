@@ -34,10 +34,17 @@ import {
   getToday,
   parseDate,
   getAllScheduleDays,
+  getWeightTrendData,
+  calculateStreak,
 } from '@/lib/store';
-import { getAllPhotos } from '@/lib/photoDb';
+import { getAllPhotos, getPhotoCount } from '@/lib/photoDb';
 import type { MuscleGroup, MuscleHeatmap, GoalMode } from '@/lib/types';
 import { GOAL_MODE_LABELS } from '@/lib/types';
+import {
+  getCurrentWeeklyChallenge,
+  getAchievements,
+  checkAndUnlockAchievements,
+} from '@/lib/weeklyChallenge';
 
 // Muscle Heatmap SVG Component
 function MuscleHeatmapView() {
@@ -523,6 +530,158 @@ function MonthlyDistance() {
   );
 }
 
+// Weight Trend Chart Component
+function WeightTrendChart() {
+  const trendData = getWeightTrendData(30);
+  const settings = getSettings();
+  const validData = trendData.filter((d) => d.weight !== null);
+
+  const minWeight = validData.length > 0
+    ? Math.min(...validData.map((d) => d.weight as number)) - 0.5
+    : 60;
+  const maxWeight = validData.length > 0
+    ? Math.max(...validData.map((d) => d.weight as number)) + 0.5
+    : 80;
+  const range = maxWeight - minWeight || 1;
+
+  // Show only every 5th label to avoid crowding
+  const visibleData = trendData.filter((_, i) => i % 5 === 0 || i === trendData.length - 1);
+
+  const getY = (weight: number) => {
+    return 100 - ((weight - minWeight) / range) * 100;
+  };
+
+  // Build SVG polyline points
+  const points = validData
+    .map((d, i) => {
+      const allIdx = trendData.findIndex((t) => t.date === d.date);
+      const x = (allIdx / (trendData.length - 1)) * 100;
+      const y = getY(d.weight as number);
+      return `${x},${y}`;
+    })
+    .join(' ');
+
+  const latestWeight = validData.length > 0 ? validData[validData.length - 1].weight : null;
+  const firstWeight = validData.length > 0 ? validData[0].weight : null;
+  const weightChange = latestWeight && firstWeight ? latestWeight - firstWeight : null;
+
+  return (
+    <div className="card-neu p-5">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-semibold text-foreground">体重推移</h3>
+        <span className="text-xs text-foreground/50">過去30日間</span>
+      </div>
+
+      {/* Summary row */}
+      <div className="flex items-center gap-4 mb-3">
+        <div>
+          <span className="text-lg font-bold font-display text-foreground">
+            {latestWeight ? `${latestWeight}kg` : '--'}
+          </span>
+          <span className="text-xs text-foreground/60 ml-1">現在</span>
+        </div>
+        {weightChange !== null && (
+          <div className={`text-sm font-bold ${
+            weightChange > 0 ? 'text-sunrise-orange' : weightChange < 0 ? 'text-blue-500' : 'text-foreground/60'
+          }`}>
+            {weightChange > 0 ? '+' : ''}{weightChange.toFixed(1)}kg
+            <span className="text-xs font-normal text-foreground/50 ml-1">30日間</span>
+          </div>
+        )}
+        <div className="ml-auto">
+          <span className="text-xs text-foreground/50">目標: </span>
+          <span className="text-xs font-bold text-sunrise-orange">{settings.targetWeight}kg</span>
+        </div>
+      </div>
+
+      {validData.length < 2 ? (
+        <div className="h-28 flex items-center justify-center">
+          <p className="text-sm text-foreground/50 text-center">
+            体重を2日以上記録するとグラフが表示されます
+          </p>
+        </div>
+      ) : (
+        <div className="relative h-28">
+          {/* Target weight line */}
+          {settings.targetWeight >= minWeight && settings.targetWeight <= maxWeight && (
+            <div
+              className="absolute left-0 right-0 border-t-2 border-dashed border-sunrise-orange/40 z-10"
+              style={{ top: `${getY(settings.targetWeight)}%` }}
+            >
+              <span className="absolute right-0 -top-4 text-[9px] text-sunrise-orange/70 font-medium">
+                目標{settings.targetWeight}kg
+              </span>
+            </div>
+          )}
+
+          {/* SVG chart */}
+          <svg
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            className="w-full h-full"
+          >
+            {/* Area fill */}
+            <defs>
+              <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#E8734A" stopOpacity="0.3" />
+                <stop offset="100%" stopColor="#E8734A" stopOpacity="0.02" />
+              </linearGradient>
+            </defs>
+            {validData.length >= 2 && (
+              <polygon
+                points={`${points} ${(trendData.findIndex((t) => t.date === validData[validData.length - 1].date) / (trendData.length - 1)) * 100},100 ${(trendData.findIndex((t) => t.date === validData[0].date) / (trendData.length - 1)) * 100},100`}
+                fill="url(#weightGrad)"
+              />
+            )}
+            {/* Line */}
+            <polyline
+              points={points}
+              fill="none"
+              stroke="#E8734A"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Data points */}
+            {validData.map((d, i) => {
+              const allIdx = trendData.findIndex((t) => t.date === d.date);
+              const x = (allIdx / (trendData.length - 1)) * 100;
+              const y = getY(d.weight as number);
+              const isLatest = i === validData.length - 1;
+              return (
+                <circle
+                  key={d.date}
+                  cx={x}
+                  cy={y}
+                  r={isLatest ? 2.5 : 1.5}
+                  fill={isLatest ? '#E8734A' : '#E8734A'}
+                  opacity={isLatest ? 1 : 0.6}
+                />
+              );
+            })}
+          </svg>
+
+          {/* Y-axis labels */}
+          <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between pointer-events-none">
+            <span className="text-[9px] text-foreground/40">{maxWeight.toFixed(1)}</span>
+            <span className="text-[9px] text-foreground/40">{((maxWeight + minWeight) / 2).toFixed(1)}</span>
+            <span className="text-[9px] text-foreground/40">{minWeight.toFixed(1)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* X-axis labels */}
+      {validData.length >= 2 && (
+        <div className="flex justify-between mt-1">
+          <span className="text-[9px] text-foreground/40">{trendData[0].label}</span>
+          <span className="text-[9px] text-foreground/40">{trendData[Math.floor(trendData.length / 2)].label}</span>
+          <span className="text-[9px] text-foreground/40">{trendData[trendData.length - 1].label}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Sleep Chart Component
 function SleepChart() {
   const data = getWeekSleepData();
@@ -866,7 +1025,7 @@ function ComprehensiveAnalysis() {
   );
 }
 
-// Main Review Page - Order: AI, Muscle Heatmap, Running, Sleep, Comprehensive Analysis, Body Photo Gallery
+// Main Review Page - Order: AI, Streak, Weekly Challenge, Muscle Heatmap, Running, Weight, Sleep, Comprehensive Analysis, Body Photo Gallery
 export default function Review() {
   return (
     <div className="px-4 pt-12 pb-4 space-y-4">
@@ -876,11 +1035,160 @@ export default function Review() {
       </div>
 
       <AIAdvice />
+      <StreakAndAchievements />
+      <WeeklyChallengeCard />
       <MuscleHeatmapView />
       <MonthlyDistance />
+      <WeightTrendChart />
       <SleepChart />
       <ComprehensiveAnalysis />
       <BodyPhotoGallery />
+    </div>
+  );
+}
+
+// ===== Weekly Challenge Component =====
+function WeeklyChallengeCard() {
+  const challenge = getCurrentWeeklyChallenge();
+
+  const categoryColors: Record<string, string> = {
+    sleep: 'bg-indigo-50 border-indigo-200 text-indigo-700',
+    training: 'bg-orange-50 border-orange-200 text-orange-700',
+    running: 'bg-green-50 border-green-200 text-green-700',
+    body: 'bg-purple-50 border-purple-200 text-purple-700',
+    mindset: 'bg-yellow-50 border-yellow-200 text-yellow-700',
+  };
+
+  const colorClass = categoryColors[challenge.category] || 'bg-muted border-border text-foreground';
+
+  return (
+    <div className="card-neu p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-foreground">今週のチャレンジ</h3>
+        <span className="text-xs text-foreground/50">毎週月曜更新</span>
+      </div>
+      <div className={`rounded-xl p-4 border ${colorClass}`}>
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-3xl">{challenge.emoji}</span>
+          <div>
+            <h4 className="text-sm font-bold">{challenge.title}</h4>
+            <p className="text-xs opacity-80 mt-0.5">{challenge.description}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 mt-3">
+          <span className="text-xs font-medium opacity-70">目標:</span>
+          <span className="text-sm font-bold">{challenge.target} {challenge.unit}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== Streak & Achievements Component =====
+function StreakAndAchievements() {
+  const [photoCount, setPhotoCount] = useState(0);
+
+  const streakData = useMemo(() => calculateStreak(), []);
+  const achievements = useMemo(() => getAchievements(), []);
+  const unlockedAchievements = achievements.filter((a) => a.unlockedAt !== null);
+
+  useEffect(() => {
+    getPhotoCount().then((count) => {
+      setPhotoCount(count);
+
+      // Check for new achievements
+      const trainingRecords = getAllTrainingRecords();
+      const runningRecords = getAllRunningRecords();
+      const sleepRecords = getAllSleepRecords();
+      const bodyLogs = getAllBodyLogs();
+
+      const totalRunningKm = Object.values(runningRecords).reduce((sum, r) => sum + (r.distance || 0), 0);
+      const totalWeightDays = Object.values(bodyLogs).filter((b) => b.weight).length;
+      const totalSleepGoodDays = Object.values(sleepRecords).filter((s) => (s.sleepHours || 0) >= 7).length;
+      const muscleGroupsUsed = new Set<string>();
+      Object.values(trainingRecords).forEach((r) => r.muscleGroups.forEach((m) => muscleGroupsUsed.add(m)));
+      const hasAllMuscles = ['胸', '背中', '肩', '腕', '脚', '腹筋'].every((m) => muscleGroupsUsed.has(m));
+
+      const newly = checkAndUnlockAchievements({
+        currentStreak: streakData.currentStreak,
+        totalSleepGoodDays,
+        totalRunningKm,
+        totalWeightDays,
+        hasAllMuscles,
+        photoCount: count,
+        totalRecordDays: streakData.totalDays,
+      });
+      if (newly.length > 0) {
+        newly.forEach((a) => toast.success(`実績解除: ${a.title} ${a.emoji}`));
+      }
+    }).catch(() => {});
+  }, [streakData]);
+
+  const getStreakEmoji = (streak: number) => {
+    if (streak >= 100) return '🏆';
+    if (streak >= 30) return '💎';
+    if (streak >= 14) return '🔥';
+    if (streak >= 7) return '⭐';
+    if (streak >= 3) return '✨';
+    return '🌱';
+  };
+
+  return (
+    <div className="card-neu p-5 space-y-4">
+      <h3 className="text-sm font-semibold text-foreground">ストリーク & 実績</h3>
+
+      {/* Streak display */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-xl p-3 text-center border border-orange-100">
+          <div className="text-2xl mb-1">{getStreakEmoji(streakData.currentStreak)}</div>
+          <p className="text-xl font-bold font-display text-sunrise-orange">{streakData.currentStreak}</p>
+          <p className="text-[10px] text-foreground/50">連続記録</p>
+        </div>
+        <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-3 text-center border border-purple-100">
+          <div className="text-2xl mb-1">🏅</div>
+          <p className="text-xl font-bold font-display text-purple-600">{streakData.longestStreak}</p>
+          <p className="text-[10px] text-foreground/50">最長記録</p>
+        </div>
+        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-3 text-center border border-green-100">
+          <div className="text-2xl mb-1">📅</div>
+          <p className="text-xl font-bold font-display text-green-600">{streakData.totalDays}</p>
+          <p className="text-[10px] text-foreground/50">総記録日</p>
+        </div>
+      </div>
+
+      {/* Streak motivation message */}
+      <div className="text-center text-xs text-foreground/60 bg-muted/40 rounded-lg py-2">
+        {streakData.currentStreak === 0
+          ? '今日から記録を始めよう！最初の一歩が大切です 🌱'
+          : streakData.currentStreak < 7
+          ? `${streakData.currentStreak}日連続！7日まであと${7 - streakData.currentStreak}日 ⭐`
+          : streakData.currentStreak < 30
+          ? `${streakData.currentStreak}日連続！この調子で30日を目指そう 🔥`
+          : `${streakData.currentStreak}日連続！素晴らしい継続力です 💎`}
+      </div>
+
+      {/* Achievements */}
+      <div>
+        <h4 className="text-xs font-bold text-foreground/50 uppercase tracking-wider mb-2">
+          実績 ({unlockedAchievements.length}/{achievements.length})
+        </h4>
+        <div className="grid grid-cols-4 gap-2">
+          {achievements.map((a) => (
+            <div
+              key={a.id}
+              className={`rounded-xl p-2 text-center transition-all ${
+                a.unlockedAt
+                  ? 'bg-gradient-to-br from-yellow-50 to-orange-50 border border-yellow-200'
+                  : 'bg-muted/30 border border-border/30 opacity-40'
+              }`}
+              title={a.description}
+            >
+              <div className="text-xl mb-1">{a.emoji}</div>
+              <p className="text-[9px] font-medium text-foreground/70 leading-tight">{a.title}</p>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

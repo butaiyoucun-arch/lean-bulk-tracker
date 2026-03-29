@@ -404,3 +404,92 @@ export function getWeekSleepData(): { day: string; hours: number | null }[] {
     };
   });
 }
+
+// ===== Get Weight Trend Data (past N days) =====
+export function getWeightTrendData(days: number): { date: string; label: string; weight: number | null }[] {
+  const result: { date: string; label: string; weight: number | null }[] = [];
+  const now = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    const dateStr = formatDate(d);
+    const log = getBodyLog(dateStr);
+    const label = `${d.getMonth() + 1}/${d.getDate()}`;
+    result.push({ date: dateStr, label, weight: log.weight });
+  }
+  return result;
+}
+
+// ===== Get Monthly Weight Average =====
+export function getMonthlyWeightAverages(months: number): { label: string; avgWeight: number | null }[] {
+  const result: { label: string; avgWeight: number | null }[] = [];
+  const now = new Date();
+  const allLogs = getAllBodyLogs();
+
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const label = `${d.getFullYear()}/${d.getMonth() + 1}`;
+    const monthLogs = Object.values(allLogs).filter((log) => {
+      const ld = parseDate(log.date);
+      return ld.getFullYear() === d.getFullYear() && ld.getMonth() === d.getMonth() && log.weight;
+    });
+    const avgWeight =
+      monthLogs.length > 0
+        ? Math.round((monthLogs.reduce((sum, l) => sum + (l.weight || 0), 0) / monthLogs.length) * 10) / 10
+        : null;
+    result.push({ label, avgWeight });
+  }
+  return result;
+}
+
+// ===== Calculate Streak (consecutive days with any record) =====
+export function calculateStreak(): { currentStreak: number; longestStreak: number; totalDays: number } {
+  const allLogs = getAllBodyLogs();
+  const allSleep = getAllSleepRecords();
+  const allTraining = getAllTrainingRecords();
+  const allRunning = getAllRunningRecords();
+
+  // Collect all dates with any record
+  const recordedDates = new Set<string>();
+  Object.keys(allLogs).forEach((d) => { if (allLogs[d].weight) recordedDates.add(d); });
+  Object.keys(allSleep).forEach((d) => { if (allSleep[d].sleepHours) recordedDates.add(d); });
+  Object.keys(allTraining).forEach((d) => recordedDates.add(d));
+  Object.keys(allRunning).forEach((d) => recordedDates.add(d));
+
+  const sortedDates = Array.from(recordedDates).sort();
+  const totalDays = sortedDates.length;
+
+  if (totalDays === 0) return { currentStreak: 0, longestStreak: 0, totalDays: 0 };
+
+  // Calculate longest streak
+  let longestStreak = 1;
+  let tempStreak = 1;
+  for (let i = 1; i < sortedDates.length; i++) {
+    const prev = parseDate(sortedDates[i - 1]);
+    const curr = parseDate(sortedDates[i]);
+    const diff = (curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24);
+    if (diff === 1) {
+      tempStreak++;
+      longestStreak = Math.max(longestStreak, tempStreak);
+    } else {
+      tempStreak = 1;
+    }
+  }
+
+  // Calculate current streak (from today backward)
+  const today = getToday();
+  let currentStreak = 0;
+  const checkDate = new Date();
+  while (true) {
+    const dateStr = formatDate(checkDate);
+    if (recordedDates.has(dateStr)) {
+      currentStreak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else {
+      break;
+    }
+    if (currentStreak > 3650) break; // safety limit
+  }
+
+  return { currentStreak, longestStreak, totalDays };
+}

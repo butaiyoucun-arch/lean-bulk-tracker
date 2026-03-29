@@ -3,7 +3,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Trash2, Download, Upload, Edit3, Save, X, HardDrive, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Download, Upload, Edit3, Save, X, HardDrive, ShieldCheck, AlertTriangle, Calendar, Archive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -29,6 +29,10 @@ import {
   getAllRunningRecords,
   getAllSleepRecords,
   getAllTrainingRecords,
+  getSleepRecord,
+  saveSleepRecord,
+  calculateSleepHours,
+  getToday,
 } from '@/lib/store';
 import {
   exportAllPhotosForBackup,
@@ -439,6 +443,178 @@ function StorageHealth() {
   );
 }
 
+// ===== Past Sleep Record Entry =====
+function PastSleepEntry() {
+  const [selectedDate, setSelectedDate] = useState('');
+  const [bedTime, setBedTime] = useState('');
+  const [wakeTime, setWakeTime] = useState('');
+  const [savedRecord, setSavedRecord] = useState<{ bedTime: string | null; wakeUpTime: string | null; sleepHours: number | null } | null>(null);
+
+  const handleDateChange = (date: string) => {
+    setSelectedDate(date);
+    if (date) {
+      const record = getSleepRecord(date);
+      setBedTime(record.bedTime || '');
+      setWakeTime(record.wakeUpTime || '');
+      setSavedRecord(record);
+    } else {
+      setSavedRecord(null);
+    }
+  };
+
+  const handleSave = () => {
+    if (!selectedDate) {
+      toast.error('日付を選択してください');
+      return;
+    }
+    const existing = getSleepRecord(selectedDate);
+    const updated = { ...existing };
+    if (bedTime) updated.bedTime = bedTime;
+    if (wakeTime) updated.wakeUpTime = wakeTime;
+    if (bedTime && wakeTime) {
+      updated.sleepHours = calculateSleepHours(bedTime, wakeTime);
+    }
+    saveSleepRecord(updated);
+    setSavedRecord(updated);
+    toast.success(`${selectedDate} の睡眠記録を保存しました`);
+  };
+
+  const today = getToday();
+
+  return (
+    <div className="card-neu p-5 space-y-3">
+      <h3 className="text-sm font-semibold flex items-center gap-2">
+        <Calendar size={14} />
+        過去の睡眠記録を入力
+      </h3>
+      <p className="text-xs text-muted-foreground">
+        記録し忘れた日の睡眠時間を後から入力できます。
+      </p>
+      <div>
+        <label className="text-xs text-muted-foreground mb-1 block">日付</label>
+        <Input
+          type="date"
+          value={selectedDate}
+          max={today}
+          onChange={(e) => handleDateChange(e.target.value)}
+          className="h-10"
+        />
+      </div>
+      {selectedDate && (
+        <>
+          {savedRecord && (savedRecord.bedTime || savedRecord.wakeUpTime) && (
+            <div className="bg-indigo-50 rounded-lg p-2 text-xs text-indigo-700">
+              既存の記録: おやすみ {savedRecord.bedTime || '--'} / おはよう {savedRecord.wakeUpTime || '--'}
+              {savedRecord.sleepHours && ` / ${savedRecord.sleepHours.toFixed(1)}h`}
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">おやすみ時間</label>
+              <Input
+                type="time"
+                value={bedTime}
+                onChange={(e) => setBedTime(e.target.value)}
+                className="h-10 text-center"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">おはよう時間</label>
+              <Input
+                type="time"
+                value={wakeTime}
+                onChange={(e) => setWakeTime(e.target.value)}
+                className="h-10 text-center"
+              />
+            </div>
+          </div>
+          {bedTime && wakeTime && (
+            <div className="text-center text-sm font-bold text-indigo-600 bg-indigo-50 rounded-lg py-2">
+              睡眠時間: {calculateSleepHours(bedTime, wakeTime).toFixed(1)}h
+            </div>
+          )}
+          <Button
+            onClick={handleSave}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+          >
+            <Save size={14} className="mr-2" />
+            保存
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ===== Year Archive Export =====
+function YearArchive() {
+  const handleArchiveYear = (year: number) => {
+    try {
+      const allSleep = getAllSleepRecords();
+      const allBody = getAllBodyLogs();
+      const allRunning = getAllRunningRecords();
+      const allTraining = getAllTrainingRecords();
+
+      const filterByYear = (records: Record<string, { date: string }>) => {
+        return Object.fromEntries(
+          Object.entries(records).filter(([, v]) => v.date.startsWith(`${year}-`))
+        );
+      };
+
+      const archive = {
+        version: 'archive-v1',
+        year,
+        exportDate: new Date().toISOString(),
+        appName: 'lean-bulk-tracker',
+        data: {
+          sleepRecords: filterByYear(allSleep),
+          bodyLogs: filterByYear(allBody),
+          runningRecords: filterByYear(allRunning),
+          trainingRecords: filterByYear(allTraining),
+        },
+      };
+
+      const json = JSON.stringify(archive, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `lean-bulk-tracker-${year}-archive.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`${year}年のデータをアーカイブしました`);
+    } catch (e) {
+      toast.error('アーカイブに失敗しました');
+    }
+  };
+
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
+
+  return (
+    <div className="card-neu p-5 space-y-3">
+      <h3 className="text-sm font-semibold flex items-center gap-2">
+        <Archive size={14} />
+        年別データアーカイブ
+      </h3>
+      <p className="text-xs text-muted-foreground">
+        特定の年のデータをJSONファイルとして保存できます。10年分のデータ管理に役立ちます。
+      </p>
+      <div className="grid grid-cols-3 gap-2">
+        {years.map((year) => (
+          <button
+            key={year}
+            onClick={() => handleArchiveYear(year)}
+            className="py-2 px-3 rounded-xl bg-muted/50 text-sm font-medium text-foreground hover:bg-muted transition-all tap-active"
+          >
+            {year}年
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // WeightSettings は GoalModeSelector に統合済み
 
 function OhtaniSheetManager() {
@@ -633,14 +809,16 @@ export default function Settings() {
 
       <GoalModeSelector />
       <OhtaniSheetManager />
+      <PastSleepEntry />
       <FullBackupRestore />
       <CsvExport />
+      <YearArchive />
       <StorageHealth />
 
       {/* App Info */}
       <div className="card-neu p-5 text-center">
         <h3 className="text-sm font-semibold mb-1">Lean Bulk Tracker</h3>
-        <p className="text-xs text-muted-foreground">v3.0.0 — 10年使えるPWA Edition</p>
+        <p className="text-xs text-muted-foreground">v4.0.0 — 10年使えるPWA Edition</p>
         <p className="text-xs text-muted-foreground mt-1">
           テキストデータはlocalStorage、写真はIndexedDBに保存されています
         </p>
