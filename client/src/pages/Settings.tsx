@@ -497,7 +497,7 @@ function PastSleepEntry() {
           value={selectedDate}
           max={today}
           onChange={(e) => handleDateChange(e.target.value)}
-          className="h-10"
+          className="h-10 w-full"
         />
       </div>
       {selectedDate && (
