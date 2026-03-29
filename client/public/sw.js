@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lbt-cache-v2';
+const CACHE_NAME = 'lbt-cache-v4';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
