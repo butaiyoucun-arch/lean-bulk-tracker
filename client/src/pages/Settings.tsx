@@ -490,14 +490,19 @@ function PastSleepEntry() {
       <p className="text-xs text-muted-foreground">
         記録し忘れた日の睡眠時間を後から入力できます。
       </p>
-      <div>
+      <div className="w-full">
         <label className="text-xs text-muted-foreground mb-1 block">日付</label>
         <Input
           type="date"
           value={selectedDate}
           max={today}
           onChange={(e) => handleDateChange(e.target.value)}
-          className="h-10 w-full"
+          className="h-10 w-full text-sm appearance-none"
+          style={{
+            maxWidth: '100%',
+            boxSizing: 'border-box',
+            overflow: 'hidden'
+          }}
         />
       </div>
       {selectedDate && (
@@ -508,14 +513,19 @@ function PastSleepEntry() {
               {savedRecord.sleepHours && ` / ${savedRecord.sleepHours.toFixed(1)}h`}
             </div>
           )}
-          <div className="flex gap-3">
+          <div className="flex gap-3 w-full">
             <div className="flex-1 min-w-0">
               <label className="text-xs text-muted-foreground mb-1 block w-full">おやすみ時間</label>
               <Input
                 type="time"
                 value={bedTime}
                 onChange={(e) => setBedTime(e.target.value)}
-                className="h-10 text-center w-full"
+                className="h-10 text-center w-full text-sm appearance-none"
+                style={{
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
+                  overflow: 'hidden'
+                }}
               />
             </div>
             <div className="flex-1 min-w-0">
@@ -524,7 +534,12 @@ function PastSleepEntry() {
                 type="time"
                 value={wakeTime}
                 onChange={(e) => setWakeTime(e.target.value)}
-                className="h-10 text-center w-full"
+                className="h-10 text-center w-full text-sm appearance-none"
+                style={{
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
+                  overflow: 'hidden'
+                }}
               />
             </div>
           </div>
