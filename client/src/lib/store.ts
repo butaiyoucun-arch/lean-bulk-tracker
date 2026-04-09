@@ -239,22 +239,37 @@ export function getRandomOhtaniQuote(): { category: string; item: string; messag
   if (categories.length === 0) {
     return { category: 'メンタル', item: 'ポジティブ思考', message: '今日も最高の一日にしよう！' };
   }
-  const cat = categories[Math.floor(Math.random() * categories.length)];
-  const item = cat.items[Math.floor(Math.random() * cat.items.length)];
-
-  const humorousMessages = [
-    `今日の「${cat.name}」テーマは「${item}」！\nこれを意識するだけで、昨日の自分より1%成長できるぞ 💪`,
-    `おはよう！今日は「${cat.name}」の日！\n「${item}」を心に刻んで、最高の一日にしよう！`,
-    `「${item}」って大谷翔平も大事にしてるらしいよ？\n今日は「${cat.name}」を意識して過ごそう！`,
-    `朝から「${cat.name}」の「${item}」を実践するなんて、\nもう勝ち確じゃん！今日もいこう！`,
-    `「${item}」— ${cat.name}の極意。\n大谷シートにある以上、これは間違いない。今日もファイト！`,
-    `今日のキーワード：「${item}」（${cat.name}より）\nこれを3回唱えてから筋トレすると効果2倍...かも？`,
+  
+  // 日付ベースのシードで毎日異なるが同日は同じ結果を返す
+  const today = getToday();
+  const seed = parseInt(today.replace(/-/g, ''), 10);
+  
+  // 全アイテムをフラットにしてシードで選択
+  const allItems: { catName: string; item: string }[] = [];
+  categories.forEach((cat) => {
+    cat.items.forEach((item) => {
+      allItems.push({ catName: cat.name, item });
+    });
+  });
+  
+  const idx = seed % allItems.length;
+  const selected = allItems[idx];
+  
+  const messageTemplates = [
+    `今日の「${selected.catName}」テーマは「${selected.item}」！\nこれを意識するだけで、昨日の自分より1%成長できるぞ`,
+    `おはよう！今日は「${selected.catName}」の日！\n「${selected.item}」を心に刻んで、最高の一日にしよう！`,
+    `「${selected.item}」って大谷翔平も大事にしてるらしいよ？\n今日は「${selected.catName}」を意識して過ごそう！`,
+    `朝から「${selected.catName}」の「${selected.item}」を実践するなんて、\nもう勝ち確じゃん！今日もいこう！`,
+    `「${selected.item}」— ${selected.catName}の極意。\n大谷シートにある以上、これは間違いない。今日もファイト！`,
+    `今日のキーワード：「${selected.item}」（${selected.catName}より）\nこれを意識して過ごせば、今日は必ず良い日になる！`,
   ];
+  
+  const msgIdx = (seed * 7) % messageTemplates.length;
 
   return {
-    category: cat.name,
-    item,
-    message: humorousMessages[Math.floor(Math.random() * humorousMessages.length)],
+    category: selected.catName,
+    item: selected.item,
+    message: messageTemplates[msgIdx],
   };
 }
 
