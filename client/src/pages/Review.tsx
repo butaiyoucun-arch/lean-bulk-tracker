@@ -93,29 +93,130 @@ function MuscleHeatmapView() {
 
       {/* Body silhouette + stats */}
       <div className="flex gap-4">
-        <div className="w-32 shrink-0">
-          <svg viewBox="0 0 120 280" className="w-full">
-            <circle cx="60" cy="25" r="18" fill="#e5e7eb" stroke="#d1d5db" strokeWidth="1" />
-            <rect x="52" y="43" width="16" height="12" fill="#e5e7eb" rx="3" />
-            <path d="M30 55 Q60 50 90 55 L88 95 Q60 100 32 95 Z"
-              fill={getColor(heatmap.counts['胸'] || 0)} stroke="#d1d5db" strokeWidth="0.5" />
-            <path d="M38 95 Q60 100 82 95 L80 145 Q60 148 40 145 Z"
-              fill={getColor(heatmap.counts['腹筋'] || 0)} stroke="#d1d5db" strokeWidth="0.5" />
-            <ellipse cx="22" cy="62" rx="12" ry="10"
-              fill={getColor(heatmap.counts['肩'] || 0)} stroke="#d1d5db" strokeWidth="0.5" />
-            <ellipse cx="98" cy="62" rx="12" ry="10"
-              fill={getColor(heatmap.counts['肩'] || 0)} stroke="#d1d5db" strokeWidth="0.5" />
-            <path d="M12 72 L6 130 L18 130 L22 72 Z"
-              fill={getColor(heatmap.counts['腕'] || 0)} stroke="#d1d5db" strokeWidth="0.5" />
-            <path d="M98 72 L102 130 L114 130 L108 72 Z"
-              fill={getColor(heatmap.counts['腕'] || 0)} stroke="#d1d5db" strokeWidth="0.5" />
-            <path d="M40 148 L32 240 L48 240 L52 148 Z"
-              fill={getColor(heatmap.counts['脚'] || 0)} stroke="#d1d5db" strokeWidth="0.5" />
-            <path d="M68 148 L72 240 L88 240 L80 148 Z"
-              fill={getColor(heatmap.counts['脚'] || 0)} stroke="#d1d5db" strokeWidth="0.5" />
-            <rect x="42" y="58" width="36" height="35" rx="4" opacity="0.3"
-              fill={getColor(heatmap.counts['背中'] || 0)} />
-          </svg>
+        <div className="w-36 shrink-0">
+          {(() => {
+            // 進捗に応じて筋肉の太さを変える（徐々にカッコよくなる）
+            const getMuscleBulk = (count: number) => {
+              const ratio = Math.min(count / heatmap.maxCount, 1);
+              return 1 + ratio * 0.35; // 1.0 ~ 1.35
+            };
+            const chestBulk = getMuscleBulk(heatmap.counts['胸'] || 0);
+            const shoulderBulk = getMuscleBulk(heatmap.counts['肩'] || 0);
+            const armBulk = getMuscleBulk(heatmap.counts['腕'] || 0);
+            const legBulk = getMuscleBulk(heatmap.counts['脚'] || 0);
+            const absBulk = getMuscleBulk(heatmap.counts['腹筋'] || 0);
+            const backBulk = getMuscleBulk(heatmap.counts['背中'] || 0);
+            // 筋肉のディテール線の透明度（進捗が高いほどくっきり）
+            const getDetailOpacity = (count: number) => {
+              const ratio = Math.min(count / heatmap.maxCount, 1);
+              return ratio * 0.6;
+            };
+            return (
+              <svg viewBox="0 0 140 300" className="w-full drop-shadow-sm">
+                <defs>
+                  <radialGradient id="headGrad" cx="50%" cy="40%" r="50%">
+                    <stop offset="0%" stopColor="#d4c5b0" />
+                    <stop offset="100%" stopColor="#c4b49a" />
+                  </radialGradient>
+                  <linearGradient id="bodyGlow" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="white" stopOpacity="0.15" />
+                    <stop offset="100%" stopColor="white" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                {/* Head */}
+                <ellipse cx="70" cy="28" rx="16" ry="19" fill="url(#headGrad)" stroke="#b8a88a" strokeWidth="0.5" />
+                {/* Neck */}
+                <path d="M62 45 Q70 47 78 45 L77 55 Q70 56 63 55 Z" fill="#d4c5b0" stroke="#b8a88a" strokeWidth="0.3" />
+                {/* Trapezius / upper back */}
+                <path d={`M${70 - 12 * backBulk} 52 Q70 48 ${70 + 12 * backBulk} 52 L${70 + 10 * backBulk} 62 Q70 64 ${70 - 10 * backBulk} 62 Z`}
+                  fill={getColor(heatmap.counts['背中'] || 0)} stroke="#b8a88a" strokeWidth="0.3" opacity="0.5" />
+                {/* Shoulders - deltoids */}
+                <ellipse cx={70 - 28 * shoulderBulk} cy="62" rx={14 * shoulderBulk} ry={11 * shoulderBulk}
+                  fill={getColor(heatmap.counts['肩'] || 0)} stroke="#b8a88a" strokeWidth="0.5" />
+                <ellipse cx={70 + 28 * shoulderBulk} cy="62" rx={14 * shoulderBulk} ry={11 * shoulderBulk}
+                  fill={getColor(heatmap.counts['肩'] || 0)} stroke="#b8a88a" strokeWidth="0.5" />
+                {/* Chest - pectorals */}
+                <path d={`M${70 - 22 * chestBulk} 58 Q70 54 ${70 + 22 * chestBulk} 58 L${70 + 20 * chestBulk} 88 Q70 92 ${70 - 20 * chestBulk} 88 Z`}
+                  fill={getColor(heatmap.counts['胸'] || 0)} stroke="#b8a88a" strokeWidth="0.5" />
+                {/* Chest detail line */}
+                <line x1="70" y1="60" x2="70" y2="88" stroke="#8b7355" strokeWidth="0.5" opacity={getDetailOpacity(heatmap.counts['胸'] || 0)} />
+                <path d={`M${70 - 8 * chestBulk} 72 Q70 75 ${70 + 8 * chestBulk} 72`} fill="none" stroke="#8b7355" strokeWidth="0.4" opacity={getDetailOpacity(heatmap.counts['胸'] || 0)} />
+                {/* Abs */}
+                <path d={`M${70 - 16 * absBulk} 90 Q70 88 ${70 + 16 * absBulk} 90 L${70 + 14 * absBulk} 148 Q70 152 ${70 - 14 * absBulk} 148 Z`}
+                  fill={getColor(heatmap.counts['腹筋'] || 0)} stroke="#b8a88a" strokeWidth="0.5" />
+                {/* Abs detail lines (6-pack) */}
+                {[100, 112, 124, 136].map((y) => (
+                  <line key={y} x1={70 - 10 * absBulk} y1={y} x2={70 + 10 * absBulk} y2={y}
+                    stroke="#8b7355" strokeWidth="0.4" opacity={getDetailOpacity(heatmap.counts['腹筋'] || 0)} />
+                ))}
+                <line x1="70" y1="92" x2="70" y2="145" stroke="#8b7355" strokeWidth="0.4" opacity={getDetailOpacity(heatmap.counts['腹筋'] || 0)} />
+                {/* Arms - biceps + forearms */}
+                {/* Left arm */}
+                <path d={`M${70 - 30 * shoulderBulk} 68 
+                  Q${70 - 34 * armBulk} 95 ${70 - 36 * armBulk} 115 
+                  L${70 - 42 * armBulk} 115 
+                  Q${70 - 38 * armBulk} 95 ${70 - 36 * shoulderBulk} 68 Z`}
+                  fill={getColor(heatmap.counts['腕'] || 0)} stroke="#b8a88a" strokeWidth="0.5" />
+                {/* Left forearm */}
+                <path d={`M${70 - 34 * armBulk} 117 
+                  Q${70 - 32 * armBulk} 140 ${70 - 30 * armBulk * 0.8} 158 
+                  L${70 - 36 * armBulk * 0.8} 158 
+                  Q${70 - 40 * armBulk} 140 ${70 - 42 * armBulk} 117 Z`}
+                  fill={getColor(heatmap.counts['腕'] || 0)} stroke="#b8a88a" strokeWidth="0.5" opacity="0.85" />
+                {/* Bicep detail */}
+                <path d={`M${70 - 34 * armBulk} 80 Q${70 - 37 * armBulk} 95 ${70 - 35 * armBulk} 110`}
+                  fill="none" stroke="#8b7355" strokeWidth="0.4" opacity={getDetailOpacity(heatmap.counts['腕'] || 0)} />
+                {/* Right arm */}
+                <path d={`M${70 + 30 * shoulderBulk} 68 
+                  Q${70 + 34 * armBulk} 95 ${70 + 36 * armBulk} 115 
+                  L${70 + 42 * armBulk} 115 
+                  Q${70 + 38 * armBulk} 95 ${70 + 36 * shoulderBulk} 68 Z`}
+                  fill={getColor(heatmap.counts['腕'] || 0)} stroke="#b8a88a" strokeWidth="0.5" />
+                {/* Right forearm */}
+                <path d={`M${70 + 34 * armBulk} 117 
+                  Q${70 + 32 * armBulk} 140 ${70 + 30 * armBulk * 0.8} 158 
+                  L${70 + 36 * armBulk * 0.8} 158 
+                  Q${70 + 40 * armBulk} 140 ${70 + 42 * armBulk} 117 Z`}
+                  fill={getColor(heatmap.counts['腕'] || 0)} stroke="#b8a88a" strokeWidth="0.5" opacity="0.85" />
+                {/* Bicep detail */}
+                <path d={`M${70 + 34 * armBulk} 80 Q${70 + 37 * armBulk} 95 ${70 + 35 * armBulk} 110`}
+                  fill="none" stroke="#8b7355" strokeWidth="0.4" opacity={getDetailOpacity(heatmap.counts['腕'] || 0)} />
+                {/* Legs - quads */}
+                {/* Left leg */}
+                <path d={`M${70 - 14 * legBulk} 150 
+                  Q${70 - 18 * legBulk} 190 ${70 - 16 * legBulk} 230 
+                  L${70 - 22 * legBulk} 230 
+                  Q${70 - 24 * legBulk} 190 ${70 - 2} 150 Z`}
+                  fill={getColor(heatmap.counts['脚'] || 0)} stroke="#b8a88a" strokeWidth="0.5" />
+                {/* Left calf */}
+                <path d={`M${70 - 15 * legBulk} 232 
+                  Q${70 - 17 * legBulk} 255 ${70 - 14 * legBulk * 0.8} 275 
+                  L${70 - 20 * legBulk * 0.8} 275 
+                  Q${70 - 23 * legBulk} 255 ${70 - 23 * legBulk} 232 Z`}
+                  fill={getColor(heatmap.counts['脚'] || 0)} stroke="#b8a88a" strokeWidth="0.5" opacity="0.85" />
+                {/* Quad detail */}
+                <path d={`M${70 - 16 * legBulk} 165 Q${70 - 19 * legBulk} 195 ${70 - 17 * legBulk} 225`}
+                  fill="none" stroke="#8b7355" strokeWidth="0.4" opacity={getDetailOpacity(heatmap.counts['脚'] || 0)} />
+                {/* Right leg */}
+                <path d={`M${70 + 2} 150 
+                  Q${70 + 24 * legBulk} 190 ${70 + 22 * legBulk} 230 
+                  L${70 + 16 * legBulk} 230 
+                  Q${70 + 18 * legBulk} 190 ${70 + 14 * legBulk} 150 Z`}
+                  fill={getColor(heatmap.counts['脚'] || 0)} stroke="#b8a88a" strokeWidth="0.5" />
+                {/* Right calf */}
+                <path d={`M${70 + 23 * legBulk} 232 
+                  Q${70 + 23 * legBulk} 255 ${70 + 20 * legBulk * 0.8} 275 
+                  L${70 + 14 * legBulk * 0.8} 275 
+                  Q${70 + 17 * legBulk} 255 ${70 + 15 * legBulk} 232 Z`}
+                  fill={getColor(heatmap.counts['脚'] || 0)} stroke="#b8a88a" strokeWidth="0.5" opacity="0.85" />
+                {/* Quad detail */}
+                <path d={`M${70 + 16 * legBulk} 165 Q${70 + 19 * legBulk} 195 ${70 + 17 * legBulk} 225`}
+                  fill="none" stroke="#8b7355" strokeWidth="0.4" opacity={getDetailOpacity(heatmap.counts['脚'] || 0)} />
+                {/* Body glow overlay */}
+                <rect x="44" y="55" width="52" height="95" rx="8" fill="url(#bodyGlow)" opacity="0.3" />
+              </svg>
+            );
+          })()}
         </div>
 
         <div className="flex-1 space-y-2">
@@ -209,6 +310,12 @@ function AIAdvice() {
   
   const getAdvice = (): { title: string; content: string; icon: string }[] => {
     const advices: { title: string; content: string; icon: string }[] = [];
+    
+    // 過去30日の基準日を全アドバイスで共有
+    const nowDate = new Date();
+    const thirtyDaysAgoDate = new Date(nowDate);
+    thirtyDaysAgoDate.setDate(nowDate.getDate() - 30);
+    const thirtyDaysAgoStr = `${thirtyDaysAgoDate.getFullYear()}-${String(thirtyDaysAgoDate.getMonth()+1).padStart(2,'0')}-${String(thirtyDaysAgoDate.getDate()).padStart(2,'0')}`;
 
     // Goal mode banner
     advices.push({
@@ -261,11 +368,19 @@ function AIAdvice() {
       }
       
       // Training frequency advice (goal-mode aware)
-      const now = new Date();
-      const thirtyDaysAgo = new Date(now);
-      thirtyDaysAgo.setDate(now.getDate() - 30);
-      const recentTraining = Object.values(records).filter(r => r.date >= `${thirtyDaysAgo.getFullYear()}-${String(thirtyDaysAgo.getMonth()+1).padStart(2,'0')}-${String(thirtyDaysAgo.getDate()).padStart(2,'0')}`);
-      const weeklyAvg = (recentTraining.length / 4.3).toFixed(1);
+      const recentTraining = Object.values(records).filter(r => r.date >= thirtyDaysAgoStr);
+      // 実際のトレーニング期間から正確な週数を算出
+      const recentDates = recentTraining.map(r => r.date).sort();
+      let actualWeeks = 30 / 7; // デフォルト30日÷7
+      if (recentDates.length >= 2) {
+        const firstDate = parseDate(recentDates[0]);
+        const lastDate = parseDate(recentDates[recentDates.length - 1]);
+        const daySpan = Math.max((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24), 7);
+        actualWeeks = daySpan / 7;
+      } else if (recentDates.length === 1) {
+        actualWeeks = 1;
+      }
+      const weeklyAvg = (recentTraining.length / actualWeeks).toFixed(1);
       
       if (recentTraining.length > 0) {
         const freq = parseFloat(weeklyAvg);
@@ -306,22 +421,25 @@ function AIAdvice() {
     // Running advice (goal-mode aware)
     if (runningDays > 0) {
       const avgDist = totalDistance / runningDays;
+      // ランニング頻度も正確に算出
+      const recentRunning30 = Object.values(running).filter(r => r.date >= thirtyDaysAgoStr);
+      const runFreqWeekly = recentRunning30.length > 0 ? (recentRunning30.length / (30 / 7)).toFixed(1) : '0';
       if (goalMode === 'cut') {
         advices.push({ icon: '🏃',
           title: avgDist >= 3 ? 'ランニングで脂肪燃焼中' : 'ランニング距離を伸ばそう',
           content: avgDist >= 3
-            ? `平均${avgDist.toFixed(1)}km/回。減量中の有氧素は強力。ただし1回45分以上は筋肉分解リスク—HIITも有効。`
-            : `平均${avgDist.toFixed(1)}km/回。3-5km・週3-4回を目標に。筋トレ後に走ると脂肪燃焼効果が高まる。`,
+            ? `平均${avgDist.toFixed(1)}km/回・週${runFreqWeekly}回ペース。減量中の有酸素は強力。ただし1回45分以上は筋肉分解リスク—HIITも有効。`
+            : `平均${avgDist.toFixed(1)}km/回・週${runFreqWeekly}回ペース。3-5km・週3-4回を目標に。筋トレ後に走ると脂肪燃焼効果が高まる。`,
         });
       } else if (goalMode === 'maintain') {
         advices.push({ icon: '🏃', title: 'ランニングで体力維持',
-          content: `平均${avgDist.toFixed(1)}km/回（合計${totalDistance.toFixed(1)}km）。週2-3回・30分程度で心肺機能を維持。` });
+          content: `平均${avgDist.toFixed(1)}km/回・週${runFreqWeekly}回ペース（合計${totalDistance.toFixed(1)}km）。週2-3回・30分程度で心肺機能を維持。` });
       } else {
         advices.push({ icon: '🏃',
           title: avgDist < 3 ? 'ランニング距離を伸ばそう' : 'ランニングは順調',
           content: avgDist < 3
-            ? `平均${avgDist.toFixed(1)}km/回。3-5km・週2-3回を目標に。1回30分以内で筋肉分解を防ぐ。`
-            : `平均${avgDist.toFixed(1)}km/回（合計${totalDistance.toFixed(1)}km）。筋トレ後に走ると脂肪燃焼効果高。ただし、1回30分以内で。`,
+            ? `平均${avgDist.toFixed(1)}km/回・週${runFreqWeekly}回ペース。3-5km・週2-3回を目標に。1回30分以内で筋肉分解を防ぐ。`
+            : `平均${avgDist.toFixed(1)}km/回・週${runFreqWeekly}回ペース（合計${totalDistance.toFixed(1)}km）。筋トレ後に走ると脂肪燃焼効果高。ただし、1回30分以内で。`,
         });
       }
     }
@@ -340,7 +458,7 @@ function AIAdvice() {
       if (goalMode === 'bulk') {
         if (change > 0 && remaining > 0) {
           advices.push({ icon: '📊', title: '体重増加傾向 — 順調',
-            content: `${first}kg→${latest}kg（+${change.toFixed(1)}kg）。目標${target}kgまであと${remaining.toFixed(1)}kg。理想ペースは月10.5-1kg。` });
+            content: `${first}kg→${latest}kg（+${change.toFixed(1)}kg）。目標${target}kgまであと${remaining.toFixed(1)}kg。理想ペースは月0.5-1kg。` });
         } else if (change <= 0) {
           advices.push({ icon: '📊', title: '体重減少傾向 — カロリーを増やそう',
             content: `${first}kg→${latest}kg（${change.toFixed(1)}kg）。基礎代謝+300-500kcal、特にトレ後30分以内にタンパク質20-30g。` });
@@ -441,11 +559,15 @@ function WeightTrendChart() {
   const settings = getSettings();
   const validData = trendData.filter((d) => d.weight !== null);
 
-  const minWeight = validData.length > 0
-    ? Math.min(...validData.map((d) => d.weight as number)) - 0.5
+  // 目標体重も含めてグラフ範囲を計算（目標線が常に見えるように）
+  const targetW = settings.targetWeight;
+  const dataWeights = validData.map((d) => d.weight as number);
+  const allWeightsForRange = targetW > 0 ? [...dataWeights, targetW] : dataWeights;
+  const minWeight = allWeightsForRange.length > 0
+    ? Math.min(...allWeightsForRange) - 0.5
     : 60;
-  const maxWeight = validData.length > 0
-    ? Math.max(...validData.map((d) => d.weight as number)) + 0.5
+  const maxWeight = allWeightsForRange.length > 0
+    ? Math.max(...allWeightsForRange) + 0.5
     : 80;
   const range = maxWeight - minWeight || 1;
 
@@ -507,13 +629,13 @@ function WeightTrendChart() {
         </div>
       ) : (
         <div className="relative h-28">
-          {/* Target weight line */}
-          {settings.targetWeight >= minWeight && settings.targetWeight <= maxWeight && (
+          {/* Target weight line - 常に表示（グラフ範囲に目標を含めているので必ず見える） */}
+          {settings.targetWeight > 0 && (
             <div
-              className="absolute left-0 right-0 border-t-2 border-dashed border-sunrise-orange/40 z-10"
-              style={{ top: `${getY(settings.targetWeight)}%` }}
+              className="absolute left-0 right-0 border-t-2 border-dashed border-sunrise-orange/50 z-10"
+              style={{ top: `${Math.max(0, Math.min(100, getY(settings.targetWeight)))}%` }}
             >
-              <span className="absolute right-0 -top-4 text-[9px] text-sunrise-orange/70 font-medium">
+              <span className="absolute right-0 -top-4 text-[9px] text-sunrise-orange font-bold bg-background/80 px-1 rounded">
                 目標{settings.targetWeight}kg
               </span>
             </div>
@@ -652,21 +774,23 @@ function SleepChart() {
   );
 }
 
-// Body Photo Gallery Component - Swipe-based full-screen viewer
+// Body Photo Gallery Component - Album-style with newest first
 // IndexedDBから写真を非同期で取得して表示する
 function BodyPhotoGallery() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [showAlbum, setShowAlbum] = useState(false);
   const [photos, setPhotos] = useState<{ date: string; photo: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const scrollRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
 
-  // IndexedDBから全写真を非同期で読み込む
+  // IndexedDBから全写真を非同期で読み込み、最新順にソート
   useEffect(() => {
     const loadPhotos = async () => {
       try {
         setIsLoading(true);
         const allPhotos = await getAllPhotos();
+        // 最新の写真が先に来るように降順ソート
+        allPhotos.sort((a, b) => b.date.localeCompare(a.date));
         setPhotos(allPhotos);
       } catch (err) {
         console.error('[BodyPhotoGallery] 写真読み込みエラー:', err);
@@ -710,41 +834,119 @@ function BodyPhotoGallery() {
     );
   }
 
+  // 月ごとに写真をグループ化（アルバム表示用）
+  const groupedByMonth: { label: string; items: { date: string; photo: string; globalIdx: number }[] }[] = [];
+  photos.forEach((p, idx) => {
+    const d = parseDate(p.date);
+    const label = `${d.getFullYear()}年${d.getMonth() + 1}月`;
+    const last = groupedByMonth[groupedByMonth.length - 1];
+    if (last && last.label === label) {
+      last.items.push({ ...p, globalIdx: idx });
+    } else {
+      groupedByMonth.push({ label, items: [{ ...p, globalIdx: idx }] });
+    }
+  });
+
   return (
-    <div className="card-neu p-5">
-      <h3 className="text-sm font-semibold mb-1 text-foreground">ボディフォトギャラリー</h3>
-      <p className="text-xs text-foreground/60 mb-3">{photos.length}枚の記録</p>
-
-      {/* Thumbnail scroll */}
-      <div
-        ref={scrollRef}
-        className="flex gap-2 overflow-x-auto snap-x-mandatory scrollbar-hide pb-2"
+    <>
+      {/* カード表示（タップでアルバムを開く） */}
+      <button
+        onClick={() => setShowAlbum(true)}
+        className="card-neu p-5 w-full text-left tap-active"
       >
-        {photos.map((p, idx) => {
-          const d = parseDate(p.date);
-          return (
-            <button
-              key={p.date}
-              onClick={() => setSelectedIndex(idx)}
-              className="shrink-0 w-20 h-24 rounded-xl overflow-hidden relative tap-active snap-center"
-            >
-              <img src={p.photo} alt={p.date} className="w-full h-full object-cover" />
-              <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] text-center py-0.5">
-                {d.getMonth() + 1}/{d.getDate()}
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">ボディフォトギャラリー</h3>
+            <p className="text-xs text-foreground/60">{photos.length}枚の記録</p>
+          </div>
+          <div className="flex items-center gap-1 text-xs text-sunrise-orange font-medium">
+            <ZoomIn size={14} />
+            アルバムを見る
+          </div>
+        </div>
+        {/* プレビュー（最新数枚） */}
+        <div className="flex gap-2 overflow-hidden">
+          {photos.slice(0, 5).map((p) => {
+            const d = parseDate(p.date);
+            return (
+              <div key={p.date} className="shrink-0 w-16 h-20 rounded-lg overflow-hidden relative">
+                <img src={p.photo} alt={p.date} className="w-full h-full object-cover" />
+                <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[9px] text-center py-0.5">
+                  {d.getMonth() + 1}/{d.getDate()}
+                </div>
               </div>
-            </button>
-          );
-        })}
-      </div>
+            );
+          })}
+          {photos.length > 5 && (
+            <div className="shrink-0 w-16 h-20 rounded-lg bg-muted/60 flex items-center justify-center">
+              <span className="text-xs font-bold text-foreground/50">+{photos.length - 5}</span>
+            </div>
+          )}
+        </div>
+      </button>
 
-      {/* Full-size swipe viewer */}
+      {/* アルバムモーダル（フルスクリーングリッド表示） */}
+      <AnimatePresence>
+        {showAlbum && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-background flex flex-col"
+          >
+            {/* ヘッダー */}
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <div>
+                <h2 className="text-lg font-bold text-foreground">ボディフォトアルバム</h2>
+                <p className="text-xs text-foreground/50">{photos.length}枚の記録</p>
+              </div>
+              <button
+                onClick={() => setShowAlbum(false)}
+                className="w-10 h-10 rounded-full bg-muted flex items-center justify-center tap-active"
+              >
+                <X size={20} className="text-foreground" />
+              </button>
+            </div>
+
+            {/* 月別グリッド */}
+            <div className="flex-1 overflow-y-auto px-4 pb-8">
+              {groupedByMonth.map((group) => (
+                <div key={group.label} className="mt-4">
+                  <h3 className="text-xs font-bold text-foreground/50 uppercase tracking-wider mb-2">{group.label}</h3>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {group.items.map((item) => {
+                      const d = parseDate(item.date);
+                      return (
+                        <button
+                          key={item.date}
+                          onClick={() => {
+                            setSelectedIndex(item.globalIdx);
+                          }}
+                          className="aspect-square rounded-lg overflow-hidden relative tap-active"
+                        >
+                          <img src={item.photo} alt={item.date} className="w-full h-full object-cover" />
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent text-white text-[10px] text-center py-1">
+                            {d.getMonth() + 1}/{d.getDate()}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 全画面ビューアー（写真タップ時） */}
       <AnimatePresence>
         {selectedIndex !== null && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/90 flex flex-col"
+            className="fixed inset-0 z-[200] bg-black/95 flex flex-col"
           >
             {/* Close button */}
             <div className="flex justify-between items-center p-4 text-white">
@@ -774,7 +976,7 @@ function BodyPhotoGallery() {
                 }
               }}
             >
-              {photos.map((p, idx) => {
+              {photos.map((p) => {
                 const d = parseDate(p.date);
                 return (
                   <div
@@ -797,7 +999,7 @@ function BodyPhotoGallery() {
               })}
             </div>
 
-            {/* Dot indicators */}
+            {/* Dot indicators - only show for small sets */}
             {photos.length <= 20 && (
               <div className="flex justify-center gap-1.5 pb-8">
                 {photos.map((_, idx) => (
@@ -813,7 +1015,7 @@ function BodyPhotoGallery() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </>
   );
 }
 
@@ -949,5 +1151,3 @@ export default function Review() {
     </div>
   );
 }
-
-
