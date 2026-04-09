@@ -7,7 +7,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Image as ImageIcon, Edit3, Clock, Moon } from 'lucide-react';
+import { Image as ImageIcon, Edit3, Clock, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -22,7 +22,6 @@ import {
   getRandomOhtaniQuote,
   calculateSleepHours,
   formatDate,
-  getOhtaniSheet,
 } from '@/lib/store';
 import { savePhoto, getPhoto, migratePhotosFromLocalStorage } from '@/lib/photoDb';
 import type { SleepRecord, BodyLog } from '@/lib/types';
@@ -169,7 +168,7 @@ export default function Home() {
   const [editBedDate, setEditBedDate] = useState(today);
   // 深夜帯（0〜5時）かどうか
   const isLateNight = todayDate.getHours() < 5;
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+
   const albumInputRef = useRef<HTMLInputElement>(null);
   const schedule = getScheduleDay(today);
 
@@ -340,7 +339,6 @@ export default function Home() {
   };
 
   const mission = getMissionDisplay();
-  const ohtaniSheet = getOhtaniSheet();
 
   // 表示するおやすみ時間：今日のレコードまたは前日のレコード（深夜帯）
   const displayBedTime = sleep.bedTime || (isLateNight && prevDaySleep?.bedTime) || null;
@@ -492,37 +490,22 @@ export default function Home() {
             {todayPhotoUrl ? (
               <img src={todayPhotoUrl} alt="Body" className="w-full h-full object-cover" />
             ) : (
-              <Camera size={24} className="text-foreground/40" />
+              <ImageIcon size={24} className="text-foreground/40" />
             )}
           </div>
 
-          {/* Camera + Album buttons */}
+          {/* Album button */}
           <div className="flex flex-col gap-1.5">
             <button
-              onClick={() => cameraInputRef.current?.click()}
+              onClick={() => albumInputRef.current?.click()}
               className="flex items-center gap-1.5 text-xs font-medium text-sunrise-orange bg-sunrise-orange/10 rounded-lg px-3 py-1.5 tap-active"
             >
-              <Camera size={13} />
-              撮影
-            </button>
-            <button
-              onClick={() => albumInputRef.current?.click()}
-              className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg px-3 py-1.5 tap-active"
-            >
               <ImageIcon size={13} />
-              アルバム
+              アルバムから選択
             </button>
           </div>
 
-          {/* Hidden file inputs */}
-          <input
-            ref={cameraInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={handlePhotoCapture}
-          />
+          {/* Hidden file input */}
           <input
             ref={albumInputRef}
             type="file"
@@ -581,7 +564,7 @@ export default function Home() {
       <AnimatePresence>
         {showMotivation && motivationData && (
           <Dialog open={showMotivation} onOpenChange={setShowMotivation}>
-            <DialogContent className="max-w-[360px] rounded-2xl p-0 overflow-hidden border-0">
+            <DialogContent className="max-w-[360px] max-h-[85vh] rounded-2xl p-0 overflow-y-auto border-0">
               {/* Animated header with gradient */}
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
@@ -643,59 +626,35 @@ export default function Home() {
                 </motion.div>
               </motion.div>
 
-              {/* Ohtani Sheet - Category + Items only */}
-              <div className="p-5 space-y-3 max-h-[50vh] overflow-y-auto">
+              {/* Today's focus - 大谷シートから1つだけ表示 */}
+              <div className="p-5 space-y-3">
                 <motion.div
                   initial={{ y: 10, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 0.5 }}
+                  className="bg-sunrise-orange/10 rounded-2xl p-5 text-center border border-sunrise-orange/20"
                 >
-                  <h3 className="text-xs font-bold text-foreground/50 uppercase tracking-wider mb-3">
-                    大谷シート
-                  </h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {ohtaniSheet.categories.map((cat, idx) => (
-                      <motion.div
-                        key={cat.id}
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ delay: 0.5 + idx * 0.05 }}
-                        className={`rounded-xl p-3 ${
-                          cat.id === motivationData.category || cat.name === motivationData.category
-                            ? 'bg-sunrise-orange/15 border-2 border-sunrise-orange/40'
-                            : 'bg-muted/60 border border-border/40'
-                        }`}
-                      >
-                        <h4 className="text-xs font-bold text-foreground mb-1.5">{cat.name}</h4>
-                        <div className="space-y-0.5">
-                          {cat.items.map((item, i) => (
-                            <p
-                              key={i}
-                              className={`text-[11px] leading-tight ${
-                                item === motivationData.item
-                                  ? 'text-sunrise-orange font-bold'
-                                  : 'text-foreground/60'
-                              }`}
-                            >
-                              {item === motivationData.item ? '▸ ' : '・'}{item}
-                            </p>
-                          ))}
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </motion.div>
-
-                {/* Today's focus highlight */}
-                <motion.div
-                  initial={{ y: 10, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.8 }}
-                  className="bg-sunrise-orange/10 rounded-xl p-4 text-center border border-sunrise-orange/20"
-                >
-                  <p className="text-xs text-foreground/50 mb-1">今日のフォーカス</p>
-                  <p className="text-sm font-bold text-sunrise-orange">{motivationData.category}</p>
-                  <p className="text-base font-bold text-foreground mt-1">{motivationData.item}</p>
+                  <p className="text-xs font-bold text-foreground/50 uppercase tracking-wider mb-3">
+                    大谷シートより — 今日のフォーカス
+                  </p>
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.6, type: 'spring', stiffness: 200 }}
+                  >
+                    <span className="inline-block bg-sunrise-orange/20 text-sunrise-orange text-xs font-bold px-3 py-1 rounded-full mb-2">
+                      {motivationData.category}
+                    </span>
+                    <p className="text-xl font-bold text-foreground mt-2">{motivationData.item}</p>
+                  </motion.div>
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.8 }}
+                    className="text-sm text-foreground/70 mt-3 leading-relaxed whitespace-pre-line"
+                  >
+                    {motivationData.message}
+                  </motion.p>
                 </motion.div>
               </div>
 
