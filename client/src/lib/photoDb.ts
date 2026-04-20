@@ -177,7 +177,7 @@ export async function checkDataIntegrity(): Promise<{
   const orphanedPhotos: string[] = [];
   const rawLogs = localStorage.getItem('lbt_body_logs');
   const logDates = rawLogs ? new Set(Object.keys(JSON.parse(rawLogs))) : new Set<string>();
-  for (const d of photoDates) {
+  for (const d of Array.from(photoDates)) {
     if (!logDates.has(d)) {
       orphanedPhotos.push(d);
     }

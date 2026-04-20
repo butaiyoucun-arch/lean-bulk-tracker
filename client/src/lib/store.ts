@@ -7,7 +7,10 @@ import {
   type AppSettings,
   type OhtaniSheet,
   type MuscleGroup,
+  type LimitChallengeRecord,
+  type LimitChallengeScores,
   DEFAULT_OHTANI_SHEET,
+  EMPTY_LIMIT_CHALLENGE_SCORES,
 } from './types';
 
 const STORAGE_KEYS = {
@@ -18,6 +21,7 @@ const STORAGE_KEYS = {
   SETTINGS: 'lbt_settings',
   RUNNING_RECORDS: 'lbt_running_records',
   TRAINING_RECORDS: 'lbt_training_records',
+  LIMIT_CHALLENGE_RECORDS: 'lbt_limit_challenge_records',
 } as const;
 
 // ===== Helper Functions =====
@@ -203,6 +207,56 @@ export function resetMuscleHeatmap(): void {
   });
 }
 
+// ===== Limit Challenge =====
+function normalizeLimitChallengeScores(scores?: Partial<LimitChallengeScores> | null): LimitChallengeScores {
+  return {
+    ...EMPTY_LIMIT_CHALLENGE_SCORES,
+    ...(scores || {}),
+  };
+}
+
+function normalizeLimitChallengeRecord(date: string, record?: Partial<LimitChallengeRecord> | null): LimitChallengeRecord {
+  return {
+    date,
+    scores: normalizeLimitChallengeScores(record?.scores),
+    comment: record?.comment || '',
+    updatedAt: record?.updatedAt || null,
+  };
+}
+
+export function getLimitChallengeRecord(date: string): LimitChallengeRecord {
+  const records = loadJSON<Record<string, LimitChallengeRecord>>(STORAGE_KEYS.LIMIT_CHALLENGE_RECORDS, {});
+  return normalizeLimitChallengeRecord(date, records[date]);
+}
+
+export function saveLimitChallengeRecord(record: LimitChallengeRecord): void {
+  const records = loadJSON<Record<string, LimitChallengeRecord>>(STORAGE_KEYS.LIMIT_CHALLENGE_RECORDS, {});
+  records[record.date] = normalizeLimitChallengeRecord(record.date, {
+    ...record,
+    updatedAt: record.updatedAt || new Date().toISOString(),
+  });
+  saveJSON(STORAGE_KEYS.LIMIT_CHALLENGE_RECORDS, records);
+}
+
+export function getAllLimitChallengeRecords(): Record<string, LimitChallengeRecord> {
+  const records = loadJSON<Record<string, LimitChallengeRecord>>(STORAGE_KEYS.LIMIT_CHALLENGE_RECORDS, {});
+  return Object.fromEntries(
+    Object.entries(records).map(([date, record]) => [date, normalizeLimitChallengeRecord(date, record)])
+  );
+}
+
+export function isLimitBreakthroughScore(score: number | null): boolean {
+  return typeof score === 'number' && score >= 100;
+}
+
+export function countLimitBreakthroughs(record: Pick<LimitChallengeRecord, 'scores'>): number {
+  return Object.values(record.scores).filter((score) => isLimitBreakthroughScore(score)).length;
+}
+
+export function hasLimitChallengeInput(record: Pick<LimitChallengeRecord, 'scores' | 'comment'>): boolean {
+  return Object.values(record.scores).some((score) => score !== null) || record.comment.trim().length > 0;
+}
+
 // ===== Settings =====
 export function getSettings(): AppSettings {
   const settings = loadJSON<AppSettings>(STORAGE_KEYS.SETTINGS, {
@@ -280,6 +334,7 @@ export function exportAllData(): {
   schedule: Record<string, ScheduleDay>;
   runningRecords: Record<string, RunningRecord>;
   trainingRecords: Record<string, TrainingDayRecord>;
+  limitChallengeRecords: Record<string, LimitChallengeRecord>;
   muscleHeatmap: MuscleHeatmap;
   settings: AppSettings;
 } {
@@ -289,6 +344,7 @@ export function exportAllData(): {
     schedule: getAllScheduleDays(),
     runningRecords: getAllRunningRecords(),
     trainingRecords: getAllTrainingRecords(),
+    limitChallengeRecords: getAllLimitChallengeRecords(),
     muscleHeatmap: getMuscleHeatmap(),
     settings: getSettings(),
   };
@@ -301,6 +357,7 @@ export function importAllData(data: {
   schedule?: Record<string, ScheduleDay>;
   runningRecords?: Record<string, RunningRecord>;
   trainingRecords?: Record<string, TrainingDayRecord>;
+  limitChallengeRecords?: Record<string, LimitChallengeRecord>;
   muscleHeatmap?: MuscleHeatmap;
   settings?: AppSettings;
 }): { imported: number; errors: string[] } {
@@ -351,6 +408,15 @@ export function importAllData(data: {
       imported += Object.keys(data.trainingRecords).length;
     }
   } catch { errors.push('トレーニング記録のインポートに失敗'); }
+
+  try {
+    if (data.limitChallengeRecords) {
+      const existing = getAllLimitChallengeRecords();
+      const merged = { ...existing, ...data.limitChallengeRecords };
+      saveJSON(STORAGE_KEYS.LIMIT_CHALLENGE_RECORDS, merged);
+      imported += Object.keys(data.limitChallengeRecords).length;
+    }
+  } catch { errors.push('限界チャレンジのインポートに失敗'); }
 
   try {
     if (data.muscleHeatmap) {
