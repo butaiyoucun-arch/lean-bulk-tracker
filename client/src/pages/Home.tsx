@@ -2,7 +2,7 @@
  * Home Page - Lean Bulk Tracker
  * Design: Warm Sunrise - Soft Neumorphism with warm tones
  * Features: Sleep Record (editable times, cross-midnight support),
- *           Morning Body Log (camera + album), Today's Mission,
+ *           Morning Body Log (camera + album), Daily Limit Challenge,
  *           Ohayou celebration animation
  */
 import { useState, useEffect, useRef } from 'react';
@@ -11,6 +11,8 @@ import { Image as ImageIcon, Edit3, Clock, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import {
   getToday,
@@ -18,14 +20,26 @@ import {
   saveSleepRecord,
   getBodyLog,
   saveBodyLog,
-  getScheduleDay,
   getRandomOhtaniQuote,
   calculateSleepHours,
   formatDate,
+  countLimitBreakthroughs,
+  getLimitChallengeRecord,
+  saveLimitChallengeRecord,
 } from '@/lib/store';
 import { savePhoto, getPhoto, migratePhotosFromLocalStorage } from '@/lib/photoDb';
-import type { SleepRecord, BodyLog } from '@/lib/types';
-import { DAY_NAMES, LONG_TERM_GOAL } from '@/lib/types';
+import type {
+  SleepRecord,
+  BodyLog,
+  LimitChallengeAxisKey,
+  LimitChallengeRecord,
+} from '@/lib/types';
+import {
+  DAY_NAMES,
+  EMPTY_LIMIT_CHALLENGE_SCORES,
+  LIMIT_CHALLENGE_AXES,
+  LONG_TERM_GOAL,
+} from '@/lib/types';
 
 // ===== Celebration Burst Animation =====
 function CelebrationBurst() {
@@ -131,6 +145,68 @@ function CelebrationBurst() {
   );
 }
 
+function LimitChallengeSliderRow({
+  label,
+  emoji,
+  value,
+  onChange,
+}: {
+  label: string;
+  emoji: string;
+  value: number | null;
+  onChange: (value: number) => void;
+}) {
+  const isBreakthrough = value !== null && value >= 100;
+
+  return (
+    <div
+      className={`rounded-2xl border p-3 transition-all ${
+        isBreakthrough
+          ? 'border-sunrise-orange/35 bg-sunrise-orange/10'
+          : 'border-border/60 bg-white/70'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-lg shrink-0">{emoji}</span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground truncate">{label}</p>
+            <p className="text-[11px] text-foreground/50">
+              {isBreakthrough ? '限界突破' : value === null ? '未入力' : '積み上げ中'}
+            </p>
+          </div>
+        </div>
+        <span
+          className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold ${
+            isBreakthrough
+              ? 'border-sunrise-orange bg-sunrise-orange text-white'
+              : 'border-border/60 bg-muted/50 text-foreground/70'
+          }`}
+        >
+          {value !== null ? `${value}点` : '--'}
+        </span>
+      </div>
+
+      <div className="mt-3 px-1">
+        <Slider
+          value={[value ?? 0]}
+          min={0}
+          max={110}
+          step={10}
+          onValueChange={([nextValue]) => onChange(nextValue)}
+          className="w-full"
+        />
+        <div className="mt-2 flex items-center justify-between text-[10px] text-foreground/40">
+          <span>0</span>
+          <span>50</span>
+          <span className="font-semibold text-sunrise-orange">100</span>
+          <span>110</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ===== 日付跨ぎ判定ヘルパー =====
 // 深夜0〜5時に「おやすみ」を押した場合は「前日」のレコードとして扱う
 function getBedTimeDate(now: Date): string {
@@ -161,6 +237,7 @@ export default function Home() {
   const [motivationData, setMotivationData] = useState<{ category: string; item: string; message: string } | null>(null);
   const [showBodyEdit, setShowBodyEdit] = useState(false);
   const [weightInput, setWeightInput] = useState('');
+  const [limitChallenge, setLimitChallenge] = useState<LimitChallengeRecord>(() => getLimitChallengeRecord(today));
   const [showTimeEdit, setShowTimeEdit] = useState(false);
   const [editWakeTime, setEditWakeTime] = useState('');
   const [editBedTime, setEditBedTime] = useState('');
@@ -170,7 +247,6 @@ export default function Home() {
   const isLateNight = todayDate.getHours() < 5;
 
   const albumInputRef = useRef<HTMLInputElement>(null);
-  const schedule = getScheduleDay(today);
 
   // 初回マウント時: localStorageからIndexedDBへの移行 + 今日の写真を読み込む
   useEffect(() => {
@@ -187,6 +263,7 @@ export default function Home() {
   useEffect(() => {
     setSleep(getSleepRecord(today));
     setBody(getBodyLog(today));
+    setLimitChallenge(getLimitChallengeRecord(today));
 
     // 深夜帯の場合は前日のレコードも読み込む（おやすみ時間の表示用）
     if (isLateNight) {
@@ -324,21 +401,42 @@ export default function Home() {
     toast.success('体重を記録しました');
   };
 
-  const getMissionDisplay = () => {
-    const s = schedule;
-    if (s.dayType === 'rest' && !s.hasRunning && s.trainingMuscles.length === 0) {
-      return { emoji: '😴', title: '今日は休養日です', sub: 'しっかり休みましょう。\n筋肉は休んでいる間に成長します。' };
-    }
-    const parts: string[] = [];
-    if (s.trainingMuscles.length > 0) parts.push(s.trainingMuscles.join('・'));
-    if (s.hasRunning) parts.push('ランニング');
-    if (parts.length === 0) {
-      return { emoji: '📋', title: 'ミッション未設定', sub: 'スケジュールタブからメニューを設定しよう！' };
-    }
-    return { emoji: '💪', title: parts.join(' + '), sub: '今日も全力で頑張ろう！' };
+  const handleLimitScoreChange = (axisKey: LimitChallengeAxisKey, value: number) => {
+    setLimitChallenge((prev) => ({
+      ...prev,
+      date: today,
+      scores: {
+        ...EMPTY_LIMIT_CHALLENGE_SCORES,
+        ...prev.scores,
+        [axisKey]: value,
+      },
+    }));
   };
 
-  const mission = getMissionDisplay();
+  const handleLimitChallengeSave = () => {
+    const allAxesFilled = LIMIT_CHALLENGE_AXES.every((axis) => limitChallenge.scores[axis.key] !== null);
+    if (!allAxesFilled) {
+      toast.error('5軸すべての点数を入力してください');
+      return;
+    }
+
+    const record: LimitChallengeRecord = {
+      ...limitChallenge,
+      date: today,
+      comment: limitChallenge.comment.trim(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    saveLimitChallengeRecord(record);
+    setLimitChallenge(record);
+
+    const breakthroughCount = countLimitBreakthroughs(record);
+    toast.success(
+      breakthroughCount > 0
+        ? `限界チャレンジを保存しました（${breakthroughCount}/5軸で限界突破）`
+        : '限界チャレンジを保存しました'
+    );
+  };
 
   // 表示するおやすみ時間：今日のレコードまたは前日のレコード（深夜帯）
   const displayBedTime = sleep.bedTime || (isLateNight && prevDaySleep?.bedTime) || null;
@@ -347,6 +445,8 @@ export default function Home() {
     : isLateNight && prevDaySleep?.bedTime
     ? '(昨日)'
     : null;
+  const allLimitAxesFilled = LIMIT_CHALLENGE_AXES.every((axis) => limitChallenge.scores[axis.key] !== null);
+  const limitBreakthroughCount = countLimitBreakthroughs(limitChallenge);
 
   return (
     <div className="px-4 pt-12 pb-4 space-y-4 relative">
@@ -543,20 +643,63 @@ export default function Home() {
         </div>
       </motion.div>
 
-      {/* Today's Mission Card */}
+      {/* Daily Limit Challenge Card */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
         className="card-neu p-5"
       >
-        <h3 className="text-sm font-bold text-foreground mb-3">
-          今日のミッション（{dayName}曜日）
-        </h3>
-        <div className="flex flex-col items-center py-4 text-center">
-          <span className="text-4xl mb-2">{mission.emoji}</span>
-          <h4 className="text-lg font-bold text-foreground">{mission.title}</h4>
-          <p className="text-sm text-foreground/60 mt-1 whitespace-pre-line">{mission.sub}</p>
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-sm font-bold text-foreground">今日の限界チャレンジ（{dayName}曜日）</h3>
+            <p className="text-xs text-foreground/55 mt-1">5軸を0〜110点で採点。100点以上が限界突破です。</p>
+          </div>
+          <div className="shrink-0 rounded-2xl border border-sunrise-orange/20 bg-sunrise-orange/10 px-3 py-2 text-center">
+            <p className="text-[10px] text-foreground/50">突破軸</p>
+            <p className="text-lg font-bold font-display text-sunrise-orange">{limitBreakthroughCount}/5</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {LIMIT_CHALLENGE_AXES.map((axis) => (
+            <LimitChallengeSliderRow
+              key={axis.key}
+              label={axis.label}
+              emoji={axis.emoji}
+              value={limitChallenge.scores[axis.key]}
+              onChange={(value) => handleLimitScoreChange(axis.key, value)}
+            />
+          ))}
+        </div>
+
+        <div className="mt-4">
+          <label className="text-xs font-semibold text-foreground/70">ひとことコメント（任意）</label>
+          <Textarea
+            value={limitChallenge.comment}
+            onChange={(e) => setLimitChallenge((prev) => ({ ...prev, comment: e.target.value }))}
+            placeholder="今日はどこで自分を超えられたか、残しておきたい一言があれば記録"
+            className="mt-2 min-h-24 rounded-2xl bg-white/70"
+            maxLength={160}
+          />
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-muted/35 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground">
+              {allLimitAxesFilled ? '5軸の入力がそろいました' : '保存するには5軸すべて入力してください'}
+            </p>
+            <p className="text-[11px] text-foreground/55 mt-0.5">
+              保存は同じ日付に上書きされます。履歴は「限界」タブで振り返れます。
+            </p>
+          </div>
+          <Button
+            onClick={handleLimitChallengeSave}
+            disabled={!allLimitAxesFilled}
+            className="shrink-0 bg-sunrise-orange hover:bg-sunrise-orange/90 text-white rounded-xl disabled:opacity-50"
+          >
+            上書き保存
+          </Button>
         </div>
       </motion.div>
 

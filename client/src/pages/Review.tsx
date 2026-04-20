@@ -514,42 +514,103 @@ function MonthlyDistance() {
   const now = new Date();
   const currentMonth = getMonthlyRunningDistance(now.getFullYear(), now.getMonth());
   const pastMonths = getPastMonthsRunningDistances(6);
+  const maxDist = Math.max(...pastMonths.map((month) => month.distance), 1);
+  const previousMonth = pastMonths.at(-2)?.distance ?? null;
+  const monthChange = previousMonth !== null ? currentMonth - previousMonth : null;
+
+  const points = pastMonths
+    .map((month, index) => {
+      const x = pastMonths.length === 1 ? 50 : (index / (pastMonths.length - 1)) * 100;
+      const y = 100 - (month.distance / maxDist) * 70 - 12;
+      return `${x},${Math.max(8, Math.min(92, y))}`;
+    })
+    .join(' ');
+
+  const areaPoints = `${points} 100,100 0,100`;
 
   return (
-    <>
-      <div className="card-neu p-5">
-        <h3 className="text-sm font-semibold mb-2 text-foreground">今月の総距離</h3>
-        <div className="text-center py-3">
-          <span className="text-4xl font-bold font-display text-sunrise-orange">
-            {currentMonth.toFixed(1)}
-          </span>
-          <span className="text-lg text-foreground/60 ml-1">km</span>
+    <div className="card-neu p-5">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <p className="text-sm font-semibold text-foreground">今月の総距離</p>
+          <div className="flex items-end gap-1 mt-1">
+            <span className="text-4xl font-bold font-display text-sunrise-orange">{currentMonth.toFixed(1)}</span>
+            <span className="text-sm text-foreground/60 mb-1">km</span>
+          </div>
+          <p className="text-xs text-foreground/55 mt-1">月別総距離は6か月推移の線グラフで表示</p>
+        </div>
+        <div className="shrink-0 rounded-2xl border border-border/60 bg-white/70 px-3 py-2 text-center">
+          <p className="text-[10px] text-foreground/50">前月比</p>
+          <p className={`text-sm font-bold ${
+            monthChange === null
+              ? 'text-foreground/60'
+              : monthChange > 0
+              ? 'text-sunrise-orange'
+              : monthChange < 0
+              ? 'text-blue-500'
+              : 'text-foreground/60'
+          }`}>
+            {monthChange === null ? '--' : `${monthChange > 0 ? '+' : ''}${monthChange.toFixed(1)}km`}
+          </p>
         </div>
       </div>
 
-      <div className="card-neu p-5">
-        <h3 className="text-sm font-semibold mb-3 text-foreground">月別総距離推移</h3>
-        <div className="flex items-end justify-between gap-2 h-32">
-          {pastMonths.map((m, i) => {
-            const maxDist = Math.max(...pastMonths.map((p) => p.distance), 1);
-            const height = (m.distance / maxDist) * 100;
+      <div className="rounded-2xl border border-border/60 bg-white/75 p-3">
+        <div className="relative h-40 w-full overflow-hidden rounded-xl bg-gradient-to-b from-sunrise-orange/10 via-white to-white">
+          <svg viewBox="0 0 100 100" className="h-full w-full">
+            {[25, 50, 75].map((y) => (
+              <line
+                key={y}
+                x1="0"
+                y1={y}
+                x2="100"
+                y2={y}
+                stroke="rgba(148, 163, 184, 0.24)"
+                strokeWidth="0.8"
+                strokeDasharray="2 3"
+              />
+            ))}
+            <polygon points={areaPoints} fill="rgba(232, 115, 74, 0.12)" />
+            <polyline
+              points={points}
+              fill="none"
+              stroke="#E8734A"
+              strokeWidth="2.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {pastMonths.map((month, index) => {
+              const x = pastMonths.length === 1 ? 50 : (index / (pastMonths.length - 1)) * 100;
+              const y = 100 - (month.distance / maxDist) * 70 - 12;
+              const cy = Math.max(8, Math.min(92, y));
+              const isCurrent = index === pastMonths.length - 1;
+              return (
+                <g key={month.label}>
+                  <circle cx={x} cy={cy} r={isCurrent ? 3.8 : 2.6} fill={isCurrent ? '#E8734A' : '#c4b5fd'} />
+                  {isCurrent && <circle cx={x} cy={cy} r="6" fill="rgba(232, 115, 74, 0.18)" />}
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+
+        <div className="mt-3 grid grid-cols-6 gap-2">
+          {pastMonths.map((month, index) => {
+            const isCurrent = index === pastMonths.length - 1;
             return (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                <span className="text-[10px] text-foreground/60">{m.distance.toFixed(0)}</span>
-                <div
-                  className="w-full rounded-t-md transition-all duration-500"
-                  style={{
-                    height: `${Math.max(height, 4)}%`,
-                    backgroundColor: i === pastMonths.length - 1 ? '#E8734A' : '#c4b5fd',
-                  }}
-                />
-                <span className="text-[10px] text-foreground/60">{m.label.split('/')[1]}月</span>
+              <div key={month.label} className="text-center">
+                <p className={`text-[10px] font-medium ${isCurrent ? 'text-sunrise-orange' : 'text-foreground/45'}`}>
+                  {month.label.split('/')[1]}月
+                </p>
+                <p className={`text-xs font-bold ${isCurrent ? 'text-sunrise-orange' : 'text-foreground/70'}`}>
+                  {month.distance.toFixed(1)}
+                </p>
               </div>
             );
           })}
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
