@@ -25,6 +25,7 @@ import {
   formatDate,
   countLimitBreakthroughs,
   getLimitChallengeRecord,
+  hasLimitChallengeInput,
   saveLimitChallengeRecord,
 } from '@/lib/store';
 import { savePhoto, getPhoto, migratePhotosFromLocalStorage } from '@/lib/photoDb';
@@ -293,6 +294,16 @@ export default function Home() {
       setPrevDaySleep(prevRecord);
     }
   }, [today]);
+
+  useEffect(() => {
+    if (!hasLimitChallengeInput(limitChallenge)) return;
+
+    saveLimitChallengeRecord({
+      ...limitChallenge,
+      date: today,
+      updatedAt: new Date().toISOString(),
+    });
+  }, [today, limitChallenge]);
 
   const handleWakeUp = () => {
     const now = new Date();
@@ -707,10 +718,12 @@ export default function Home() {
         <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-muted/35 px-4 py-3">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">
-              {allLimitAxesFilled ? '5軸の入力がそろいました' : '保存するには5軸すべて入力してください'}
+              {allLimitAxesFilled ? '5軸の入力がそろいました' : '入力内容は自動で下書き保存されます'}
             </p>
             <p className="text-[11px] text-foreground/55 mt-0.5">
-              保存は同じ日付に上書きされます。履歴は「限界」タブで振り返れます。
+              {allLimitAxesFilled
+                ? '必要なら上書き保存で記録完了できます。履歴は「限界」タブで振り返れます。'
+                : '途中入力でも消えずに残ります。5軸そろうと見返しやすくなります。'}
             </p>
           </div>
           <Button
