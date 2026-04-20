@@ -6,7 +6,7 @@ const navItems = [
   { path: '/', label: 'ホーム', icon: Home },
   { path: '/schedule', label: 'スケジュール', icon: CalendarDays },
   { path: '/review', label: '振り返り', icon: BarChart3 },
-  { path: '/challenge', label: 'チャレンジ', icon: Trophy },
+  { path: '/challenge', label: '限界', icon: Trophy },
   { path: '/settings', label: '設定', icon: Settings },
 ];
 
