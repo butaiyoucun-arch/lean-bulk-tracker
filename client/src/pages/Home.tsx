@@ -25,7 +25,6 @@ import {
   formatDate,
   countLimitBreakthroughs,
   getLimitChallengeRecord,
-  hasLimitChallengeInput,
   saveLimitChallengeRecord,
 } from '@/lib/store';
 import { savePhoto, getPhoto, migratePhotosFromLocalStorage } from '@/lib/photoDb';
@@ -228,6 +227,13 @@ function LimitChallengeSliderRow({
   );
 }
 
+function getLimitChallengeContentSignature(record: LimitChallengeRecord) {
+  return JSON.stringify({
+    scores: record.scores,
+    comment: record.comment,
+  });
+}
+
 // ===== 日付跨ぎ判定ヘルパー =====
 // 深夜0〜5時に「おやすみ」を押した場合は「前日」のレコードとして扱う
 function getBedTimeDate(now: Date): string {
@@ -258,7 +264,8 @@ export default function Home() {
   const [motivationData, setMotivationData] = useState<{ category: string; item: string; message: string } | null>(null);
   const [showBodyEdit, setShowBodyEdit] = useState(false);
   const [weightInput, setWeightInput] = useState('');
-  const [limitChallenge, setLimitChallenge] = useState<LimitChallengeRecord>(() => getLimitChallengeRecord(today));
+  const [savedLimitChallenge, setSavedLimitChallenge] = useState<LimitChallengeRecord>(() => getLimitChallengeRecord(today));
+  const [limitChallengeDraft, setLimitChallengeDraft] = useState<LimitChallengeRecord>(() => getLimitChallengeRecord(today));
   const [showTimeEdit, setShowTimeEdit] = useState(false);
   const [editWakeTime, setEditWakeTime] = useState('');
   const [editBedTime, setEditBedTime] = useState('');
@@ -284,7 +291,9 @@ export default function Home() {
   useEffect(() => {
     setSleep(getSleepRecord(today));
     setBody(getBodyLog(today));
-    setLimitChallenge(getLimitChallengeRecord(today));
+    const limitChallengeRecord = getLimitChallengeRecord(today);
+    setSavedLimitChallenge(limitChallengeRecord);
+    setLimitChallengeDraft(limitChallengeRecord);
 
     // 深夜帯の場合は前日のレコードも読み込む（おやすみ時間の表示用）
     if (isLateNight) {
@@ -294,16 +303,6 @@ export default function Home() {
       setPrevDaySleep(prevRecord);
     }
   }, [today]);
-
-  useEffect(() => {
-    if (!hasLimitChallengeInput(limitChallenge)) return;
-
-    saveLimitChallengeRecord({
-      ...limitChallenge,
-      date: today,
-      updatedAt: new Date().toISOString(),
-    });
-  }, [today, limitChallenge]);
 
   const handleWakeUp = () => {
     const now = new Date();
@@ -433,7 +432,7 @@ export default function Home() {
   };
 
   const handleLimitScoreChange = (axisKey: LimitChallengeAxisKey, value: number) => {
-    setLimitChallenge((prev) => ({
+    setLimitChallengeDraft((prev) => ({
       ...prev,
       date: today,
       scores: {
@@ -444,28 +443,34 @@ export default function Home() {
     }));
   };
 
+  const handleLimitChallengeReset = () => {
+    setLimitChallengeDraft(savedLimitChallenge);
+    toast.success('未確定の入力を元に戻しました');
+  };
+
   const handleLimitChallengeSave = () => {
-    const allAxesFilled = LIMIT_CHALLENGE_AXES.every((axis) => limitChallenge.scores[axis.key] !== null);
+    const allAxesFilled = LIMIT_CHALLENGE_AXES.every((axis) => limitChallengeDraft.scores[axis.key] !== null);
     if (!allAxesFilled) {
       toast.error('5軸すべての点数を入力してください');
       return;
     }
 
     const record: LimitChallengeRecord = {
-      ...limitChallenge,
+      ...limitChallengeDraft,
       date: today,
-      comment: limitChallenge.comment.trim(),
+      comment: limitChallengeDraft.comment.trim(),
       updatedAt: new Date().toISOString(),
     };
 
     saveLimitChallengeRecord(record);
-    setLimitChallenge(record);
+    setSavedLimitChallenge(record);
+    setLimitChallengeDraft(record);
 
     const breakthroughCount = countLimitBreakthroughs(record);
     toast.success(
       breakthroughCount > 0
-        ? `限界チャレンジを保存しました（${breakthroughCount}/5軸で限界突破）`
-        : '限界チャレンジを保存しました'
+        ? `限界チャレンジを確定しました（${breakthroughCount}/5軸で限界突破）`
+        : '限界チャレンジを確定しました'
     );
   };
 
@@ -476,8 +481,12 @@ export default function Home() {
     : isLateNight && prevDaySleep?.bedTime
     ? '(昨日)'
     : null;
-  const allLimitAxesFilled = LIMIT_CHALLENGE_AXES.every((axis) => limitChallenge.scores[axis.key] !== null);
-  const limitBreakthroughCount = countLimitBreakthroughs(limitChallenge);
+  const allLimitAxesFilled = LIMIT_CHALLENGE_AXES.every((axis) => limitChallengeDraft.scores[axis.key] !== null);
+  const limitBreakthroughCount = countLimitBreakthroughs(limitChallengeDraft);
+  const hasUnsavedLimitChallengeChanges =
+    getLimitChallengeContentSignature(limitChallengeDraft) !== getLimitChallengeContentSignature(savedLimitChallenge);
+  const hasSavedLimitChallenge = LIMIT_CHALLENGE_AXES.some((axis) => savedLimitChallenge.scores[axis.key] !== null) ||
+    savedLimitChallenge.comment.trim().length > 0;
 
   return (
     <div className="px-4 pt-12 pb-4 space-y-4 relative">
@@ -698,7 +707,7 @@ export default function Home() {
               key={axis.key}
               label={axis.label}
               emoji={axis.emoji}
-              value={limitChallenge.scores[axis.key]}
+              value={limitChallengeDraft.scores[axis.key]}
               onChange={(value) => handleLimitScoreChange(axis.key, value)}
             />
           ))}
@@ -707,32 +716,50 @@ export default function Home() {
         <div className="mt-4">
           <label className="text-xs font-semibold text-foreground/70">ひとことコメント（任意）</label>
           <Textarea
-            value={limitChallenge.comment}
-            onChange={(e) => setLimitChallenge((prev) => ({ ...prev, comment: e.target.value }))}
+            value={limitChallengeDraft.comment}
+            onChange={(e) => setLimitChallengeDraft((prev) => ({ ...prev, comment: e.target.value }))}
             placeholder="今日はどこで自分を超えられたか、残しておきたい一言があれば記録"
             className="mt-2 min-h-24 rounded-2xl bg-white/70"
             maxLength={160}
           />
         </div>
 
-        <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-muted/35 px-4 py-3">
+        <div className="mt-4 rounded-2xl bg-muted/35 px-4 py-3 space-y-3">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">
-              {allLimitAxesFilled ? '5軸の入力がそろいました' : '入力内容は自動で下書き保存されます'}
+              {hasUnsavedLimitChallengeChanges
+                ? '未確定の変更があります'
+                : hasSavedLimitChallenge
+                  ? '今日の記録は確定済みです'
+                  : '数値を調整したら確定してください'}
             </p>
             <p className="text-[11px] text-foreground/55 mt-0.5">
-              {allLimitAxesFilled
-                ? '必要なら上書き保存で記録完了できます。履歴は「限界」タブで振り返れます。'
-                : '途中入力でも消えずに残ります。5軸そろうと見返しやすくなります。'}
+              {hasUnsavedLimitChallengeChanges
+                ? '誤入力しても、確定前なら何度でもやり直せます。内容を確認してから確定してください。'
+                : hasSavedLimitChallenge
+                  ? '数値を変更したあとに、もう一度確定すれば最新内容へ更新されます。'
+                  : 'まずは5軸を調整し、最後に確定ボタンで保存します。'}
             </p>
           </div>
-          <Button
-            onClick={handleLimitChallengeSave}
-            disabled={!allLimitAxesFilled}
-            className="shrink-0 bg-sunrise-orange hover:bg-sunrise-orange/90 text-white rounded-xl disabled:opacity-50"
-          >
-            上書き保存
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleLimitChallengeReset}
+              disabled={!hasUnsavedLimitChallengeChanges}
+              className="flex-1 rounded-xl"
+            >
+              やり直す
+            </Button>
+            <Button
+              type="button"
+              onClick={handleLimitChallengeSave}
+              disabled={!allLimitAxesFilled || !hasUnsavedLimitChallengeChanges}
+              className="flex-[1.4] bg-sunrise-orange hover:bg-sunrise-orange/90 text-white rounded-xl disabled:opacity-50"
+            >
+              {allLimitAxesFilled ? 'この内容で確定' : '5軸入力後に確定'}
+            </Button>
+          </div>
         </div>
       </motion.div>
 
