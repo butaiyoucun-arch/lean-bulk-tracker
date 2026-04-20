@@ -254,7 +254,7 @@ export function countLimitBreakthroughs(record: Pick<LimitChallengeRecord, 'scor
 }
 
 export function hasLimitChallengeInput(record: Pick<LimitChallengeRecord, 'scores' | 'comment'>): boolean {
-  return Object.values(record.scores).some((score) => score !== null) || record.comment.trim().length > 0;
+  return Object.values(record.scores).some((score) => score !== null);
 }
 
 // ===== Settings =====
