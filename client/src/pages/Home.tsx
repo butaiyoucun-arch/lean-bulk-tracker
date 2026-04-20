@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
-import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import {
   getToday,
@@ -520,36 +519,6 @@ export default function Home() {
     );
   };
 
-  const handleLimitCommentReset = () => {
-    setLimitChallengeDraft((prev) => ({
-      ...prev,
-      comment: savedLimitChallenge.comment,
-    }));
-    toast.success('コメントを元に戻しました');
-  };
-
-  const handleLimitCommentSave = () => {
-    const nextComment = limitChallengeDraft.comment.trim();
-    if (nextComment === savedLimitChallenge.comment) return;
-
-    const record: LimitChallengeRecord = {
-      ...savedLimitChallenge,
-      date: today,
-      comment: nextComment,
-      updatedAt: new Date().toISOString(),
-    };
-
-    saveLimitChallengeRecord(record);
-    setSavedLimitChallenge(record);
-    setLimitChallengeDraft((prev) => ({
-      ...prev,
-      date: today,
-      comment: nextComment,
-    }));
-
-    toast.success(nextComment ? 'コメントを保存しました' : 'コメントを空欄に戻しました');
-  };
-
   // 表示するおやすみ時間：今日のレコードまたは前日のレコード（深夜帯）
   const displayBedTime = sleep.bedTime || (isLateNight && prevDaySleep?.bedTime) || null;
   const displayBedDateLabel = sleep.bedTime
@@ -558,7 +527,6 @@ export default function Home() {
     ? '(昨日)'
     : null;
   const limitBreakthroughCount = countLimitBreakthroughs(savedLimitChallenge);
-  const hasUnsavedCommentChange = limitChallengeDraft.comment !== savedLimitChallenge.comment;
 
   return (
     <div className="px-4 pt-12 pb-4 space-y-4 relative">
@@ -792,44 +760,6 @@ export default function Home() {
           ))}
         </div>
 
-        <div className="mt-4 rounded-2xl border border-border/60 bg-white/70 p-4">
-          <label className="text-xs font-semibold text-foreground/70">ひとことコメント（任意）</label>
-          <Textarea
-            value={limitChallengeDraft.comment}
-            onChange={(e) => setLimitChallengeDraft((prev) => ({ ...prev, comment: e.target.value }))}
-            placeholder="今日はどこで自分を超えられたか、残しておきたい一言があれば記録"
-            className="mt-2 min-h-24 rounded-2xl bg-white/70"
-            maxLength={160}
-          />
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <p className="text-[11px] text-foreground/55">
-              {hasUnsavedCommentChange
-                ? 'コメントはまだ未保存です'
-                : savedLimitChallenge.comment
-                  ? 'コメントは保存済みです'
-                  : 'コメントは未入力のままでも大丈夫です'}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleLimitCommentReset}
-                disabled={!hasUnsavedCommentChange}
-                className="h-8 rounded-lg px-3 text-xs"
-              >
-                取り消し
-              </Button>
-              <Button
-                type="button"
-                onClick={handleLimitCommentSave}
-                disabled={!hasUnsavedCommentChange}
-                className="h-8 rounded-lg bg-sunrise-orange px-3 text-xs text-white hover:bg-sunrise-orange/90 disabled:opacity-50"
-              >
-                確定
-              </Button>
-            </div>
-          </div>
-        </div>
       </motion.div>
 
       {/* ===== Ohayou Motivation Modal ===== */}
