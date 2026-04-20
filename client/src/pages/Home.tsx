@@ -157,6 +157,7 @@ function LimitChallengeSliderRow({
   onChange: (value: number) => void;
 }) {
   const isBreakthrough = value !== null && value >= 100;
+  const scoreTicks = [0, 50, 100, 110] as const;
 
   return (
     <div
@@ -188,20 +189,39 @@ function LimitChallengeSliderRow({
       </div>
 
       <div className="mt-3 px-1">
-        <Slider
-          value={[value ?? 0]}
-          min={0}
-          max={110}
-          step={10}
-          onValueChange={([nextValue]) => onChange(nextValue)}
-          className="w-full"
-        />
-        <div className="mt-2 flex items-center justify-between text-[10px] text-foreground/40">
-          <span>0</span>
-          <span>50</span>
-          <span className="font-semibold text-sunrise-orange">100</span>
-          <span>110</span>
+        <div className="relative">
+          <div
+            className="pointer-events-none absolute top-1/2 z-10 h-5 -translate-y-1/2 border-l border-dashed border-sunrise-orange/55"
+            style={{ left: `${(100 / 110) * 100}%` }}
+          />
+          <Slider
+            value={[value ?? 0]}
+            min={0}
+            max={110}
+            step={10}
+            onValueChange={([nextValue]) => onChange(nextValue)}
+            className="w-full"
+          />
         </div>
+        <div className="relative mt-2 h-4 text-[10px] text-foreground/40">
+          {scoreTicks.map((tick) => {
+            const isEdgeStart = tick === 0;
+            const isEdgeEnd = tick === 110;
+            return (
+              <span
+                key={tick}
+                className={`absolute top-0 ${tick === 100 ? 'font-semibold text-sunrise-orange' : ''}`}
+                style={{
+                  left: `${(tick / 110) * 100}%`,
+                  transform: isEdgeStart ? 'translateX(0)' : isEdgeEnd ? 'translateX(-100%)' : 'translateX(-50%)',
+                }}
+              >
+                {tick}
+              </span>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-[10px] font-medium text-sunrise-orange/80">破線が100点ラインです</p>
       </div>
     </div>
   );
