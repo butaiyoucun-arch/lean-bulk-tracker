@@ -149,14 +149,22 @@ function LimitChallengeSliderRow({
   label,
   emoji,
   value,
+  savedValue,
   onChange,
+  onCancel,
+  onConfirm,
 }: {
   label: string;
   emoji: string;
   value: number | null;
+  savedValue: number | null;
   onChange: (value: number) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
 }) {
+  const isDirty = value !== savedValue;
   const isBreakthrough = value !== null && value >= 100;
+  const isSavedBreakthrough = savedValue !== null && savedValue >= 100;
   const scoreTicks = [0, 50, 100, 110] as const;
 
   return (
@@ -173,7 +181,7 @@ function LimitChallengeSliderRow({
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground truncate">{label}</p>
             <p className="text-[11px] text-foreground/50">
-              {isBreakthrough ? '限界突破' : value === null ? '未入力' : '積み上げ中'}
+              {isDirty ? '未確定' : isBreakthrough ? '限界突破' : value === null ? '未入力' : '確定済み'}
             </p>
           </div>
         </div>
@@ -223,15 +231,41 @@ function LimitChallengeSliderRow({
         </div>
         <p className="mt-2 text-[10px] font-medium text-sunrise-orange/80">破線が100点ラインです</p>
       </div>
+
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <p className="text-[11px] text-foreground/55">
+          {isDirty
+            ? `保存前: ${savedValue === null ? '未入力' : `${savedValue}点`}`
+            : savedValue === null
+              ? 'まだ保存されていません'
+              : `保存済み: ${savedValue}点${isSavedBreakthrough ? '（限界突破）' : ''}`}
+        </p>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={!isDirty}
+            className="h-8 rounded-lg px-3 text-xs"
+          >
+            取り消し
+          </Button>
+          <Button
+            type="button"
+            onClick={onConfirm}
+            disabled={!isDirty}
+            className="h-8 rounded-lg bg-sunrise-orange px-3 text-xs text-white hover:bg-sunrise-orange/90 disabled:opacity-50"
+          >
+            確定
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
 
-function getLimitChallengeContentSignature(record: LimitChallengeRecord) {
-  return JSON.stringify({
-    scores: record.scores,
-    comment: record.comment,
-  });
+function getLimitAxisLabel(axisKey: LimitChallengeAxisKey) {
+  return LIMIT_CHALLENGE_AXES.find((axis) => axis.key === axisKey)?.label ?? '項目';
 }
 
 // ===== 日付跨ぎ判定ヘルパー =====
@@ -443,35 +477,77 @@ export default function Home() {
     }));
   };
 
-  const handleLimitChallengeReset = () => {
-    setLimitChallengeDraft(savedLimitChallenge);
-    toast.success('未確定の入力を元に戻しました');
+  const handleLimitAxisReset = (axisKey: LimitChallengeAxisKey) => {
+    setLimitChallengeDraft((prev) => ({
+      ...prev,
+      scores: {
+        ...prev.scores,
+        [axisKey]: savedLimitChallenge.scores[axisKey],
+      },
+    }));
+    toast.success(`${getLimitAxisLabel(axisKey)}を元に戻しました`);
   };
 
-  const handleLimitChallengeSave = () => {
-    const allAxesFilled = LIMIT_CHALLENGE_AXES.every((axis) => limitChallengeDraft.scores[axis.key] !== null);
-    if (!allAxesFilled) {
-      toast.error('5軸すべての点数を入力してください');
-      return;
-    }
+  const handleLimitAxisSave = (axisKey: LimitChallengeAxisKey) => {
+    const nextValue = limitChallengeDraft.scores[axisKey];
+    if (nextValue === savedLimitChallenge.scores[axisKey]) return;
 
     const record: LimitChallengeRecord = {
-      ...limitChallengeDraft,
+      ...savedLimitChallenge,
       date: today,
-      comment: limitChallengeDraft.comment.trim(),
+      scores: {
+        ...savedLimitChallenge.scores,
+        [axisKey]: nextValue,
+      },
       updatedAt: new Date().toISOString(),
     };
 
     saveLimitChallengeRecord(record);
     setSavedLimitChallenge(record);
-    setLimitChallengeDraft(record);
+    setLimitChallengeDraft((prev) => ({
+      ...prev,
+      date: today,
+      scores: {
+        ...prev.scores,
+        [axisKey]: nextValue,
+      },
+    }));
 
-    const breakthroughCount = countLimitBreakthroughs(record);
     toast.success(
-      breakthroughCount > 0
-        ? `限界チャレンジを確定しました（${breakthroughCount}/5軸で限界突破）`
-        : '限界チャレンジを確定しました'
+      `${getLimitAxisLabel(axisKey)}を${nextValue === null ? '未入力' : `${nextValue}点`}で確定しました${
+        typeof nextValue === 'number' && nextValue >= 100 ? '（限界突破）' : ''
+      }`
     );
+  };
+
+  const handleLimitCommentReset = () => {
+    setLimitChallengeDraft((prev) => ({
+      ...prev,
+      comment: savedLimitChallenge.comment,
+    }));
+    toast.success('コメントを元に戻しました');
+  };
+
+  const handleLimitCommentSave = () => {
+    const nextComment = limitChallengeDraft.comment.trim();
+    if (nextComment === savedLimitChallenge.comment) return;
+
+    const record: LimitChallengeRecord = {
+      ...savedLimitChallenge,
+      date: today,
+      comment: nextComment,
+      updatedAt: new Date().toISOString(),
+    };
+
+    saveLimitChallengeRecord(record);
+    setSavedLimitChallenge(record);
+    setLimitChallengeDraft((prev) => ({
+      ...prev,
+      date: today,
+      comment: nextComment,
+    }));
+
+    toast.success(nextComment ? 'コメントを保存しました' : 'コメントを空欄に戻しました');
   };
 
   // 表示するおやすみ時間：今日のレコードまたは前日のレコード（深夜帯）
@@ -481,12 +557,8 @@ export default function Home() {
     : isLateNight && prevDaySleep?.bedTime
     ? '(昨日)'
     : null;
-  const allLimitAxesFilled = LIMIT_CHALLENGE_AXES.every((axis) => limitChallengeDraft.scores[axis.key] !== null);
-  const limitBreakthroughCount = countLimitBreakthroughs(limitChallengeDraft);
-  const hasUnsavedLimitChallengeChanges =
-    getLimitChallengeContentSignature(limitChallengeDraft) !== getLimitChallengeContentSignature(savedLimitChallenge);
-  const hasSavedLimitChallenge = LIMIT_CHALLENGE_AXES.some((axis) => savedLimitChallenge.scores[axis.key] !== null) ||
-    savedLimitChallenge.comment.trim().length > 0;
+  const limitBreakthroughCount = countLimitBreakthroughs(savedLimitChallenge);
+  const hasUnsavedCommentChange = limitChallengeDraft.comment !== savedLimitChallenge.comment;
 
   return (
     <div className="px-4 pt-12 pb-4 space-y-4 relative">
@@ -701,19 +773,26 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="space-y-3">
+        <p className="text-[11px] text-foreground/55 mt-4">
+          必要な項目だけ、各カードの「確定」で保存できます。入力しない項目は空欄のままで大丈夫です。
+        </p>
+
+        <div className="space-y-3 mt-3">
           {LIMIT_CHALLENGE_AXES.map((axis) => (
             <LimitChallengeSliderRow
               key={axis.key}
               label={axis.label}
               emoji={axis.emoji}
               value={limitChallengeDraft.scores[axis.key]}
+              savedValue={savedLimitChallenge.scores[axis.key]}
               onChange={(value) => handleLimitScoreChange(axis.key, value)}
+              onCancel={() => handleLimitAxisReset(axis.key)}
+              onConfirm={() => handleLimitAxisSave(axis.key)}
             />
           ))}
         </div>
 
-        <div className="mt-4">
+        <div className="mt-4 rounded-2xl border border-border/60 bg-white/70 p-4">
           <label className="text-xs font-semibold text-foreground/70">ひとことコメント（任意）</label>
           <Textarea
             value={limitChallengeDraft.comment}
@@ -722,43 +801,33 @@ export default function Home() {
             className="mt-2 min-h-24 rounded-2xl bg-white/70"
             maxLength={160}
           />
-        </div>
-
-        <div className="mt-4 rounded-2xl bg-muted/35 px-4 py-3 space-y-3">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground">
-              {hasUnsavedLimitChallengeChanges
-                ? '未確定の変更があります'
-                : hasSavedLimitChallenge
-                  ? '今日の記録は確定済みです'
-                  : '数値を調整したら確定してください'}
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <p className="text-[11px] text-foreground/55">
+              {hasUnsavedCommentChange
+                ? 'コメントはまだ未保存です'
+                : savedLimitChallenge.comment
+                  ? 'コメントは保存済みです'
+                  : 'コメントは未入力のままでも大丈夫です'}
             </p>
-            <p className="text-[11px] text-foreground/55 mt-0.5">
-              {hasUnsavedLimitChallengeChanges
-                ? '誤入力しても、確定前なら何度でもやり直せます。内容を確認してから確定してください。'
-                : hasSavedLimitChallenge
-                  ? '数値を変更したあとに、もう一度確定すれば最新内容へ更新されます。'
-                  : 'まずは5軸を調整し、最後に確定ボタンで保存します。'}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleLimitChallengeReset}
-              disabled={!hasUnsavedLimitChallengeChanges}
-              className="flex-1 rounded-xl"
-            >
-              やり直す
-            </Button>
-            <Button
-              type="button"
-              onClick={handleLimitChallengeSave}
-              disabled={!allLimitAxesFilled || !hasUnsavedLimitChallengeChanges}
-              className="flex-[1.4] bg-sunrise-orange hover:bg-sunrise-orange/90 text-white rounded-xl disabled:opacity-50"
-            >
-              {allLimitAxesFilled ? 'この内容で確定' : '5軸入力後に確定'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleLimitCommentReset}
+                disabled={!hasUnsavedCommentChange}
+                className="h-8 rounded-lg px-3 text-xs"
+              >
+                取り消し
+              </Button>
+              <Button
+                type="button"
+                onClick={handleLimitCommentSave}
+                disabled={!hasUnsavedCommentChange}
+                className="h-8 rounded-lg bg-sunrise-orange px-3 text-xs text-white hover:bg-sunrise-orange/90 disabled:opacity-50"
+              >
+                確定
+              </Button>
+            </div>
           </div>
         </div>
       </motion.div>
