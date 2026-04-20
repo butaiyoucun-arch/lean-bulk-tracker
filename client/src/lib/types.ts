@@ -81,11 +81,11 @@ export interface AppSettings {
 }
 
 export const LIMIT_CHALLENGE_AXES = [
+  { key: 'work', label: '仕事', emoji: '💼' },
   { key: 'learning', label: '学習', emoji: '📚' },
+  { key: 'health', label: '健康', emoji: '🌿' },
   { key: 'longTermGoal', label: '長期目標行動', emoji: '🎯' },
   { key: 'relationships', label: '人間関係', emoji: '🤝' },
-  { key: 'work', label: '仕事', emoji: '💼' },
-  { key: 'health', label: '健康', emoji: '🌿' },
 ] as const;
 
 export type LimitChallengeAxisKey = (typeof LIMIT_CHALLENGE_AXES)[number]['key'];
@@ -93,11 +93,11 @@ export type LimitChallengeAxisKey = (typeof LIMIT_CHALLENGE_AXES)[number]['key']
 export type LimitChallengeScores = Record<LimitChallengeAxisKey, number | null>;
 
 export const EMPTY_LIMIT_CHALLENGE_SCORES: LimitChallengeScores = {
+  work: null,
   learning: null,
+  health: null,
   longTermGoal: null,
   relationships: null,
-  work: null,
-  health: null,
 };
 
 export interface LimitChallengeRecord {
